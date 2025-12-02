@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+
 import * as bcrypt from 'bcrypt';
-import mongoose, { Document } from 'mongoose';
+import mongoose, { HydratedDocument } from 'mongoose';
 @Schema({ timestamps: true })
 export class User {
   @Prop({ type: String, required: true, minlength: 2 })
@@ -46,13 +47,15 @@ export class User {
 
   @Prop({
     type: [mongoose.Schema.Types.ObjectId],
-    ref: 'User',
+    ref: User.name,
     default: [],
   })
   friends: string[];
+
+  _id: mongoose.Types.ObjectId;
 }
 
-export type UserDocument = Document & User;
+export type UserDocument = HydratedDocument<User>;
 export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();

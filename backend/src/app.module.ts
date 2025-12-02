@@ -9,6 +9,7 @@ import { ExceptionHandler } from './utils/exception/exception.handler';
 import { WinstonLoggerModule } from './utils/winston/winston.module';
 import { StreamModule } from './stream/stream.module';
 import { ChatModule } from './chat/chat.module';
+import { MessageModule } from './message/message.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ChatModule } from './chat/chat.module';
     WinstonLoggerModule,
     StreamModule,
     ChatModule,
+    MessageModule,
   ],
   controllers: [],
   providers: [

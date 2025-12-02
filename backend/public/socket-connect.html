@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSocket Chat Client</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+      }
+      #messages {
+        border: 1px solid #ccc;
+        height: 400px;
+        overflow-y: scroll;
+        padding: 10px;
+        margin-bottom: 20px;
+        background: #f9f9f9;
+      }
+      .message {
+        margin: 10px 0;
+        padding: 8px;
+        background: white;
+        border-radius: 4px;
+      }
+      .system-message {
+        color: #666;
+        font-style: italic;
+      }
+      input,
+      button {
+        padding: 10px;
+        margin: 5px;
+      }
+      input {
+        width: 300px;
+      }
+      .controls {
+        margin-bottom: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WebSocket Chat Client</h1>
+
+    <div class="controls">
+      <input type="text" id="token" placeholder="JWT Token" />
+      <button onclick="connect()">Connect</button>
+    </div>
+
+    <div class="controls">
+      <input type="text" id="roomId" placeholder="Room ID" />
+      <button onclick="joinRoom()">Join Room</button>
+    </div>
+
+    <div id="messages"></div>
+
+    <div class="controls">
+      <input type="text" id="messageInput" placeholder="Type your message..." />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+      let socket = null;
+      let currentRoom = null;
+
+      function addMessage(text, isSystem = false) {
+        const messagesDiv = document.getElementById('messages');
+        const messageEl = document.createElement('div');
+        messageEl.className = isSystem ? 'message system-message' : 'message';
+        messageEl.textContent = text;
+        messagesDiv.appendChild(messageEl);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+
+      function connect() {
+        const token = document.getElementById('token').value;
+
+        if (!token) {
+          alert('Please enter a JWT token');
+          return;
+        }
+
+        // Connect with token in auth (not via cookie)
+        socket = io('http://localhost:3001', {
+          auth: {
+            token: '', // Send token here
+          },
+          withCredentials: true,
+          transports: ['websocket', 'polling'],
+        });
+
+        socket.on('connect', () => {
+          addMessage('✓ Connected to server', true);
+          console.log('Connected:', socket.id);
+        });
+
+        socket.on('disconnect', () => {
+          addMessage('✗ Disconnected from server', true);
+          console.log('Disconnected');
+        });
+
+        socket.on('user-joined', (data) => {
+          addMessage(`User ${data.userId} joined the room`, true);
+        });
+
+        socket.on('receive-message', (data) => {
+          addMessage(`${data.sender}: ${data.message}`);
+        });
+
+        socket.on('connect_error', (error) => {
+          addMessage(`Connection error: ${error.message}`, true);
+          console.error('Connection error:', error);
+        });
+
+        socket.on('exception', (error) => {
+          addMessage(`Error: ${error.message}`, true);
+          console.error('Exception:', error);
+        });
+      }
+      function joinRoom() {
+        if (!socket || !socket.connected) {
+          alert('Please connect first');
+          return;
+        }
+
+        const roomId = document.getElementById('roomId').value;
+        if (!roomId) {
+          alert('Please enter a room ID');
+          return;
+        }
+
+        currentRoom = roomId;
+        socket.emit('join-room', { roomId });
+        addMessage(`Joining room: ${roomId}`, true);
+      }
+
+      function sendMessage() {
+        if (!socket || !socket.connected) {
+          alert('Please connect first');
+          return;
+        }
+
+        if (!currentRoom) {
+          alert('Please join a room first');
+          return;
+        }
+
+        const messageInput = document.getElementById('messageInput');
+        const message = messageInput.value.trim();
+
+        if (!message) {
+          alert('Please enter a message');
+          return;
+        }
+
+        socket.emit('send-message', {
+          roomId: currentRoom,
+          message: message,
+        });
+
+        messageInput.value = '';
+      }
+
+      // Allow sending messages with Enter key
+      document
+        .getElementById('messageInput')
+        .addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            sendMessage();
+          }
+        });
+    </script>
+  </body>
+</html>

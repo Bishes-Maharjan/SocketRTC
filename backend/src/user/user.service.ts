@@ -6,13 +6,16 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { ChatService } from 'src/chat/chat.service';
 import { StreamService } from 'src/stream/stream.service';
 import {
   FriendRequest,
   FriendRequestDocument,
 } from './model/friendRequest.model';
 import { User, UserDocument } from './model/user.model';
-
+type PopulatedUser = Omit<User, 'friends'> & {
+  friends: User[];
+};
 @Injectable()
 export class UserService {
   constructor(
@@ -21,6 +24,7 @@ export class UserService {
     private frModel: Model<FriendRequestDocument>,
     private jwt: JwtService,
     private streamClient: StreamService,
+    private chatService: ChatService,
   ) {}
 
   async getRecommendedUsers(id: string) {
@@ -43,6 +47,27 @@ export class UserService {
       .select('friends')
       .populate('friends');
     return myFriends;
+  }
+
+  async getFriendWithChatRoomId(userId: string) {
+    const myFriends = (await this.userModel
+      .findById(userId)
+      .select('friends')
+      .populate('friends')) as PopulatedUser | null;
+
+    if (!myFriends?.friends) return [];
+
+    const result = await Promise.all(
+      myFriends.friends.map(async (friend) => {
+        const chatRoomId = await this.chatService.getChatRoomId(
+          userId,
+          friend._id.toString(),
+        );
+        return { ...friend, chatRoomId };
+      }),
+    );
+
+    return result;
   }
 
   async sendFriendRequest(receiver: string, sender: string) {
@@ -119,7 +144,7 @@ export class UserService {
       .exec();
     return outgoingRequest;
   }
-  async acceptFriendRequest(receiver: string, requestId?: string) {
+  async acceptFriendRequest(receiver: string, requestId: string) {
     const friendRequest = await this.frModel.findById(requestId);
 
     if (!friendRequest) throw new NotFoundException('fr doesnt exist');
@@ -141,6 +166,9 @@ export class UserService {
     ]);
     const senderDocument = await this.userModel.findById(sender);
     if (!senderDocument) throw new NotFoundException('The user doesnt exist');
+    const senderId = senderDocument._id.toString();
+    const receiverId = receiver.toString();
+    await this.chatService.createChatRoomId(senderId, receiverId);
 
     return {
       message: `Friend request from ${senderDocument.fullName} accepted`,
@@ -164,5 +192,10 @@ export class UserService {
     const user = await this.userModel.findById(id);
 
     return user;
+  }
+
+  async getAllUsers() {
+    const users = await this.userModel.find({});
+    return users;
   }
 }

@@ -21,6 +21,13 @@ import { UserService } from './user.service';
 export class UserController {
   constructor(private userService: UserService) {}
 
+  @Get('all')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get All Users' })
+  async getAllUsers() {
+    return await this.userService.getAllUsers();
+  }
+
   @Get('recommendation')
   @HttpCode(200)
   @ApiOperation({ summary: 'Get Recommended Users' })
