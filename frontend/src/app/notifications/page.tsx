@@ -70,6 +70,7 @@ const NotificationsPage = () => {
       queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
       queryClient.invalidateQueries({ queryKey: ["friends"] });
       queryClient.invalidateQueries({ queryKey: ["notification"] });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
 
       setTimeout(() => {
         router.refresh();
@@ -91,6 +92,10 @@ const NotificationsPage = () => {
         queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
         queryClient.invalidateQueries({ queryKey: ["friends"] });
         queryClient.invalidateQueries({ queryKey: ["notification"] });
+        queryClient.invalidateQueries({ queryKey: ["users"] });
+        setTimeout(() => {
+          router.refresh();
+        }, 1000);
       },
     });
 

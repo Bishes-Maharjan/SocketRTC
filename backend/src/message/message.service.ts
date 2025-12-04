@@ -9,16 +9,6 @@ export class MessageService {
     @InjectModel(Message.name) private messageModel: Model<MessageDocument>,
   ) {}
 
-  async registerMessage(
-    roomId: string,
-    message: string,
-    sender: string,
-    to: string,
-  ) {
-    const newMessage = new this.messageModel({ roomId, message, sender, to });
-    await newMessage.save();
-  }
-
   //for infinite query for chat window , rendering messages
   async getRoomMessagesWithItsUnreadCount(
     userId: string,
@@ -43,14 +33,53 @@ export class MessageService {
       isRead: false,
     });
     const total = await this.messageModel.countDocuments({
-      to: userId,
       roomId,
     });
 
     const hasMore = skip + messages.length < total;
     return { messages, unreadCount, hasMore };
   }
+  // In your message.service.ts
+  async registerMessage(
+    roomId: string,
+    message: string,
+    senderId: string,
+    recipientId: string,
+  ) {
+    const newMessage = await this.messageModel.create({
+      roomId,
+      message,
+      sender: senderId,
+      to: recipientId,
+    });
 
+    return newMessage;
+  }
+
+  async markRoomMessagesAsRead(roomId: string, userId: string) {
+    // Mark all unread messages in this room where userId is the recipient
+    await this.messageModel.updateMany(
+      {
+        roomId,
+        to: userId,
+        isRead: false,
+      },
+      {
+        $set: { isRead: true },
+      },
+    );
+
+    // Return the IDs of marked messages (you might need to fetch them first)
+    const markedMessages = await this.messageModel
+      .find({
+        roomId,
+        to: userId,
+        isRead: true,
+      })
+      .select('_id');
+
+    return markedMessages.map((msg) => msg._id.toString());
+  }
   async readMessage(roomId: string, userId: string) {
     const updateMessageStatus = await this.messageModel.updateMany(
       {
@@ -67,7 +96,10 @@ export class MessageService {
   }
   //for a chat notification badge to show total undred messages
   async getTotalUnreadMessages(id: string) {
-    const unread = await this.messageModel.countDocuments({ to: id });
+    const unread = await this.messageModel.countDocuments({
+      to: id,
+      isRead: false,
+    });
     return unread;
   }
 }

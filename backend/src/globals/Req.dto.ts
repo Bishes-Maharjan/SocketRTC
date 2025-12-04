@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, Min } from 'class-validator';
 import { Request } from 'express';
@@ -25,11 +26,12 @@ export class Grequest extends Request {
 }
 
 export class paginationQuery {
+  @ApiProperty({ type: () => Number, required: false })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   limit: number = 20;
-
+  @ApiProperty({ type: () => Number, required: false })
   @Type(() => Number)
   @IsInt()
   @Min(1)

@@ -22,7 +22,6 @@ export class JwtWsGuard implements CanActivate {
         this.extractTokenFromAuth(client);
 
       if (!token) {
-        console.log(' No token found in cookie or auth');
         throw new WsException('Unauthorized');
       }
 
@@ -32,7 +31,7 @@ export class JwtWsGuard implements CanActivate {
       ) as ValidateUser;
 
       client.data.user = payload;
-      console.log(' User authenticated:', payload.id);
+      console.log(' User authenticated:', payload.email);
       return true;
     } catch (err) {
       console.log(' Auth failed:', (err as Error).message);

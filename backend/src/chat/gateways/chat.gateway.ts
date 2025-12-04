@@ -35,6 +35,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private chatService: ChatService,
     private messageService: MessageService,
   ) {}
+
   @WebSocketServer()
   server: Server;
 
@@ -42,8 +43,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleConnection(client: AuthenticatedSocket) {
     console.log(`Client connected: ${client.id}, user:`, client.data.user?.id);
   }
+
   handleDisconnect(client: AuthenticatedSocket) {
     console.log(`Client disconnected: ${client.id}`);
+
     client.disconnect();
   }
 
@@ -56,6 +59,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const user = client.data.user;
     const userId = user?.id ?? user?.email ?? client.id;
+
+    // Mark all messages in this room as read for this user
+    await this.messageService.markRoomMessagesAsRead(roomId, userId);
 
     client.to(roomId).emit('user-joined', {
       userId,
@@ -75,21 +81,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const roomExists = await this.chatService.checkRoomId(roomId);
     if (!roomExists) throw new WsException('Room Id doesnt exist for' + roomId);
 
-    if (!client.data.user?.id) throw new WsException('Sender Id is misiing');
+    if (!client.data.user?.id) throw new WsException('Sender Id is missing');
 
-    const chatPartner =
-      roomExists.members.find((id) => id != client.data.user?.id) || '';
-    await this.messageService.registerMessage(
+    const senderId = client.data.user.id;
+    const chatPartner = roomExists.members.find((id) => id != senderId) || '';
+
+    // Save message with appropriate read status
+    const savedMessage = await this.messageService.registerMessage(
       roomId,
       message,
-      client.data.user?.id || '',
+      senderId,
       chatPartner,
     );
 
+    // Emit message to everyone in the room
     this.server.to(roomId).emit('receive-message', {
-      sender: client.data.user?.id,
+      _id: savedMessage._id,
+      sender: senderId,
       message,
-      timeStamp: new Date(),
     });
   }
 }
