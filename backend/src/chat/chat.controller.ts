@@ -1,34 +1,39 @@
 import {
   Controller,
+  ForbiddenException,
   Get,
-  HttpCode,
   Param,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtGuard } from 'src/auth/guard/jwtGuard';
-import { Irequest } from 'src/globals/Req.dto';
+import { Irequest, paginationQuery } from 'src/globals/Req.dto';
 import { ChatService } from './chat.service';
 
 @ApiTags('chat')
 @Controller('chat')
 export class ChatController {
   constructor(private chatService: ChatService) {}
-  @ApiOperation({ summary: 'Get Stream Token' })
-  @HttpCode(200)
   @UseGuards(JwtGuard)
-  @Get('token')
-  getStreamToken(@Req() { user: { id } }: Irequest) {
-    return this.chatService.getStreamToken(id);
+  @Get()
+  async getRoomId(
+    @Query() query: paginationQuery,
+    @Req() { user: { id } }: Irequest,
+  ) {
+    return await this.chatService.getAllChatRooms(id, query);
   }
 
-  @Get(':userId')
   @UseGuards(JwtGuard)
-  async getRoomId(
-    @Req() { user: { id } }: Irequest,
-    @Param('userId') receptientId: string,
+  @Get('check-room/:roomId')
+  async checkRoomId(
+    @Param('roomId') roomId: string,
+    @Req() { user: { id: userId } }: Irequest,
   ) {
-    return await this.chatService.createChatRoomId(id, receptientId);
+    const room = await this.chatService.checkRoomId(roomId);
+    if (!room.members.find((id) => id == userId))
+      throw new ForbiddenException('User not a part of the conversation');
+    return room;
   }
 }

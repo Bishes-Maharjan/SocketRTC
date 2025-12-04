@@ -23,10 +23,12 @@ export interface RequestDB {
   sender: User;
   receiver: User;
   status: Status;
+  updatedAt: string;
+  isRead: boolean;
 }
 
 export enum Status {
-  Pending = 'pending',
-  Accepted = 'accepted',
-  Rejected = 'rejected',
+  Pending = "pending",
+  Accepted = "accepted",
+  Rejected = "rejected",
 }

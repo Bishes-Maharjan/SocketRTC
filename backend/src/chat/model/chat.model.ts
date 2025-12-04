@@ -1,3 +1,4 @@
+// In your model file
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { ArrayMinSize } from 'class-validator';
 import mongoose, { Document, HydratedDocument } from 'mongoose';
@@ -13,5 +14,7 @@ export class Chat extends Document {
   @ArrayMinSize(2)
   members: string[];
 }
+
 export type ChatDocument = HydratedDocument<Chat>;
+
 export const ChatSchema = SchemaFactory.createForClass(Chat);

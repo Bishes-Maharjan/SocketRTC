@@ -265,6 +265,7 @@
       const video2 = document.getElementById('video2');
       const debugLog = document.getElementById('debugLog');
 
+      // Debug logging
       function log(message, type = 'info') {
         console.log(`[${type.toUpperCase()}]`, message);
         const entry = document.createElement('div');
@@ -309,7 +310,7 @@
 
           // Show local video immediately
           videoContainer.classList.remove('hidden');
-          setVideo(video1, localStream, 'You (Local)'); // change the name , we will get email from useUser() useContext in nextjs
+          setVideo(video1, localStream, 'You (Local)');
           log('✓ Local video displayed', 'success');
 
           // Initialize socket AFTER we have the stream
@@ -320,7 +321,7 @@
             },
           });
 
-          currentRoom = roomId; // here is it set manually asked through all that but in next we will have it in [params], app router
+          currentRoom = roomId;
 
           // Set up socket listeners and wait for connection
           await setupSocketListeners(roomId);
@@ -333,136 +334,148 @@
         }
       }
 
-      function setupSocketListeners() {
-        socket.on('connect', () => {
-          log(
-            '✓ Connected to signaling server (socket.id: ' + socket.id + ')',
-            'success',
-          );
-        });
-
-        socket.on('disconnect', () => {
-          log('✗ Disconnected from signaling server', 'error');
-          if (currentRoom) {
-            status.textContent = 'Connection lost. Please rejoin.';
-          }
-        });
-
-        socket.on('error', (error) => {
-          log('✗ Socket error: ' + error, 'error');
-        });
-
-        socket.on(
-          'chatting-partner',
-          async ({ chatPartner, currentUserId, username }) => {
-            userId = currentUserId;
-            userName = username;
-
-            log('✓ Joined room successfully', 'success');
-            log('Your userId: ' + currentUserId, 'info');
-            log('Your username: ' + username, 'info');
-            log('Chat partner: ' + (chatPartner || 'None (waiting)'), 'info');
-
-            // Update UI
-            joinSection.classList.add('hidden');
-            controlSection.classList.remove('hidden');
-            status.textContent = `Connected to room as ${username}`;
-
-            // If there's a chat partner, initiate connection
-            if (chatPartner) {
-              log('Initiating peer connection with: ' + chatPartner, 'info');
-              const peerConnection = await createPeerConnection(chatPartner);
-
-              // Create and send offer
-              log('Creating offer...', 'info');
-              const offer = await peerConnection.createOffer();
-              await peerConnection.setLocalDescription(offer);
-              log('✓ Local description set (offer)', 'success');
-
-              log('Sending offer to room: ' + currentRoom, 'info');
-              socket.emit('offer', {
-                roomId: currentRoom,
-                offer,
-              });
-            } else {
-              log('Waiting for another user to join...', 'warning');
-              status.textContent = 'Waiting for another user...';
-            }
-          },
-        );
-
-        socket.on('user-joined', async (peerId) => {
-          log('New user joined: ' + peerId, 'info');
-          status.textContent = 'Another user is connecting...';
-        });
-
-        socket.on('offer', async ({ from, offer }) => {
-          log('Received offer from: ' + from, 'info');
-
-          const peerConnection = await createPeerConnection(from);
-
-          log('Setting remote description (offer)...', 'info');
-          await peerConnection.setRemoteDescription(
-            new RTCSessionDescription(offer),
-          );
-          log('✓ Remote description set (offer)', 'success');
-
-          log('Creating answer...', 'info');
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
-          log('✓ Local description set (answer)', 'success');
-
-          log('Sending answer to room: ' + currentRoom, 'info');
-          socket.emit('answer', {
-            roomId: currentRoom,
-            answer,
-          });
-        });
-
-        socket.on('answer', async ({ from, answer }) => {
-          log('Received answer from: ' + from, 'info');
-
-          if (remotePeerConnection) {
-            log('Setting remote description (answer)...', 'info');
-            await remotePeerConnection.setRemoteDescription(
-              new RTCSessionDescription(answer),
+      function setupSocketListeners(roomId) {
+        return new Promise((resolve, reject) => {
+          socket.on('connect', () => {
+            log(
+              '✓ Connected to signaling server (socket.id: ' + socket.id + ')',
+              'success',
             );
-            log('✓ Remote description set (answer)', 'success');
-          } else {
-            log('✗ No peer connection exists to set answer', 'error');
-          }
-        });
 
-        socket.on('ice-candidate', async ({ sender, candidate }) => {
-          log('Received ICE candidate from: ' + sender, 'info');
+            // Now join the room after connection is established
+            log('Joining room: ' + roomId, 'info');
+            socket.emit('join-video-room', roomId);
+            resolve();
+          });
 
-          if (remotePeerConnection) {
-            try {
-              await remotePeerConnection.addIceCandidate(
-                new RTCIceCandidate(candidate),
-              );
-              log('✓ Added ICE candidate', 'success');
-            } catch (error) {
-              log('✗ Error adding ICE candidate: ' + error.message, 'error');
+          socket.on('disconnect', () => {
+            log('✗ Disconnected from signaling server', 'error');
+            if (currentRoom) {
+              status.textContent = 'Connection lost. Please rejoin.';
             }
-          } else {
-            log('✗ No peer connection exists for ICE candidate', 'warning');
-          }
-        });
+          });
 
-        socket.on('user-disconnected', (disconnectedUserId) => {
-          log('User disconnected: ' + disconnectedUserId, 'warning');
+          socket.on('connect_error', (error) => {
+            log('✗ Connection error: ' + error.message, 'error');
+            reject(error);
+          });
 
-          if (disconnectedUserId === remotePeerId) {
+          socket.on('error', (error) => {
+            log('✗ Socket error: ' + JSON.stringify(error), 'error');
+          });
+
+          socket.on(
+            'chatting-partner',
+            async ({ chatPartner, currentUserId, username }) => {
+              userId = currentUserId;
+              userName = username;
+
+              log('✓ Joined room successfully', 'success');
+              log('Your userId: ' + currentUserId, 'info');
+              log('Your username: ' + username, 'info');
+              log('Chat partner: ' + (chatPartner || 'None (waiting)'), 'info');
+
+              // Update UI
+              joinSection.classList.add('hidden');
+              controlSection.classList.remove('hidden');
+              status.textContent = `Connected to room as ${username}`;
+
+              // If there's a chat partner, initiate connection
+              if (chatPartner) {
+                log('Initiating peer connection with: ' + chatPartner, 'info');
+                const peerConnection = await createPeerConnection(chatPartner);
+
+                // Create and send offer
+                log('Creating offer...', 'info');
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                log('✓ Local description set (offer)', 'success');
+
+                log('Sending offer to room: ' + currentRoom, 'info');
+                socket.emit('offer', {
+                  roomId: currentRoom,
+                  offer,
+                });
+              } else {
+                log('Waiting for another user to join...', 'warning');
+                status.textContent = 'Waiting for another user...';
+              }
+            },
+          );
+
+          socket.on('user-joined', async (peerId) => {
+            log('New user joined: ' + peerId, 'info');
+            status.textContent = 'Another user is connecting...';
+          });
+
+          socket.on('offer', async ({ from, offer }) => {
+            log('Received offer from: ' + from, 'info');
+
+            const peerConnection = await createPeerConnection(from);
+
+            log('Setting remote description (offer)...', 'info');
+            await peerConnection.setRemoteDescription(
+              new RTCSessionDescription(offer),
+            );
+            log('✓ Remote description set (offer)', 'success');
+
+            log('Creating answer...', 'info');
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            log('✓ Local description set (answer)', 'success');
+
+            log('Sending answer to room: ' + currentRoom, 'info');
+            socket.emit('answer', {
+              roomId: currentRoom,
+              answer,
+            });
+          });
+
+          socket.on('answer', async ({ from, answer }) => {
+            log('Received answer from: ' + from, 'info');
+
             if (remotePeerConnection) {
-              remotePeerConnection.close();
-              remotePeerConnection = null;
+              log('Setting remote description (answer)...', 'info');
+              await remotePeerConnection.setRemoteDescription(
+                new RTCSessionDescription(answer),
+              );
+              log('✓ Remote description set (answer)', 'success');
+            } else {
+              log('✗ No peer connection exists to set answer', 'error');
             }
+          });
 
-            setWaiting(video2, 'User disconnected');
-            remotePeerId = null;
-            status.textContent = `Waiting for another user in room: ${currentRoom}`;
-          }
+          socket.on('ice-candidate', async ({ sender, candidate }) => {
+            log('Received ICE candidate from: ' + sender, 'info');
+
+            if (remotePeerConnection) {
+              try {
+                await remotePeerConnection.addIceCandidate(
+                  new RTCIceCandidate(candidate),
+                );
+                log('✓ Added ICE candidate', 'success');
+              } catch (error) {
+                log('✗ Error adding ICE candidate: ' + error.message, 'error');
+              }
+            } else {
+              log('✗ No peer connection exists for ICE candidate', 'warning');
+            }
+          });
+
+          socket.on('user-disconnected', (disconnectedUserId) => {
+            log('User disconnected: ' + disconnectedUserId, 'warning');
+
+            if (disconnectedUserId === remotePeerId) {
+              if (remotePeerConnection) {
+                remotePeerConnection.close();
+                remotePeerConnection = null;
+              }
+
+              setWaiting(video2, 'User disconnected');
+              remotePeerId = null;
+              status.textContent = `Waiting for another user in room: ${currentRoom}`;
+            }
+          });
         });
       }
 

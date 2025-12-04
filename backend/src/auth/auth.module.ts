@@ -2,7 +2,6 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
-import { StreamModule } from 'src/stream/stream.module';
 import { User, UserSchema } from 'src/user/model/user.model';
 import { UserModule } from 'src/user/user.module';
 import { AuthController } from './auth.controller';
@@ -27,7 +26,6 @@ import { JwtStrategy } from './strategy/jwtStrategy';
         schema: UserSchema,
       },
     ]),
-    StreamModule,
   ],
   providers: [AuthService, JwtStrategy, GoogleStrategy],
   controllers: [AuthController],

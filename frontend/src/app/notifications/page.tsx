@@ -1,31 +1,46 @@
-'use client';
-import NoNotificationsFound from '@/components/NoNotification';
-import { RequestDB } from '@/interfaces/allInterface';
+"use client";
+import NoNotificationsFound from "@/components/NoNotification";
+import { RequestDB } from "@/interfaces/allInterface";
 import {
   acceptFriendRequest,
   getFriendRequest,
   rejectFriendRequest,
-} from '@/lib/friend.api';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { isAxiosError } from 'axios';
+} from "@/lib/friend.api";
+import { readAllNotifications } from "@/lib/notification";
+import { formatMessageTime } from "@/lib/utils";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import {
   BellIcon,
+  CheckCheckIcon,
   ClockIcon,
   MessageSquareIcon,
   UserCheckIcon,
-} from 'lucide-react';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import toast, { ErrorIcon, Toaster } from 'react-hot-toast';
+} from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import toast, { ErrorIcon, Toaster } from "react-hot-toast";
 
 const NotificationsPage = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { data: friendRequests, isLoading } = useQuery({
-    queryKey: ['friendRequests'],
+    queryKey: ["friendRequests"],
     queryFn: getFriendRequest,
   });
 
+  const { mutate: readAllNotification } = useMutation({
+    mutationFn: readAllNotifications,
+    onSuccess: (data) => {
+      toast.success(data.message);
+      queryClient.invalidateQueries({ queryKey: ["notification"] });
+    },
+    onError: (error) => {
+      if (error && isAxiosError(error)) {
+        toast.error(error.response?.data.message);
+      }
+    },
+  });
   const {
     mutate: acceptRequestMutation,
     isPending: isAcceptPending,
@@ -34,8 +49,8 @@ const NotificationsPage = () => {
     mutationFn: acceptFriendRequest,
     onSuccess: (data) => {
       toast.success(data.message);
-      queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
-      queryClient.invalidateQueries({ queryKey: ['friends'] });
+      queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
       setTimeout(() => {
         router.refresh();
       }, 1000);
@@ -52,8 +67,8 @@ const NotificationsPage = () => {
       mutationFn: rejectFriendRequest,
       onSuccess: (data) => {
         toast.success(data.message);
-        queryClient.invalidateQueries({ queryKey: ['friendRequests'] });
-        queryClient.invalidateQueries({ queryKey: ['friends'] });
+        queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
+        queryClient.invalidateQueries({ queryKey: ["friends"] });
       },
     });
 
@@ -65,9 +80,19 @@ const NotificationsPage = () => {
     <div className="p-4 sm:p-6 lg:p-8">
       <Toaster />
       <div className="container mx-auto max-w-4xl space-y-8">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-6">
-          Notifications
-        </h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Notifications
+          </h1>
+
+          <button
+            onClick={() => readAllNotification()}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-white hover:bg-primary/80 transition"
+          >
+            <CheckCheckIcon className="h-5 w-5" />
+            <span className="hidden sm:block">Mark all as read</span>
+          </button>
+        </div>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -89,7 +114,10 @@ const NotificationsPage = () => {
                   {incomingRequests.map((request: RequestDB) => (
                     <div
                       key={request._id}
-                      className="card bg-base-200 shadow-sm hover:shadow-md transition-shadow"
+                      className={`card     ${
+                        request.isRead ? "bg-blue-100" : "bg-base-200"
+                      }
+ shadow-sm hover:shadow-md transition-shadow`}
                     >
                       <div className="card-body p-4">
                         <div className="flex items-center justify-between">
@@ -98,7 +126,7 @@ const NotificationsPage = () => {
                               <Image
                                 sizes="80px"
                                 fill
-                                src={request.sender.image}
+                                src={`http://localhost:3001${request.sender.image}`}
                                 alt={request.sender.fullName}
                               />
                             </div>
@@ -152,8 +180,17 @@ const NotificationsPage = () => {
                   {acceptedRequests.map((notification: RequestDB) => (
                     <div
                       key={notification._id}
-                      className="card bg-base-200 shadow-sm"
+                      className={`card ${
+                        notification.isRead ? "bg-blue-100" : "bg-base-200"
+                      } shadow-sm`}
                     >
+                      <CheckCheckIcon
+                        className={`h-4 w-4 absolute top-2 right-2 ${
+                          notification.isRead
+                            ? "text-blue-600"
+                            : "text-gray-400"
+                        }`}
+                      />
                       <div className="card-body p-4">
                         <div className="flex items-start gap-3">
                           <div className="avatar mt-1 size-10 rounded-full">
@@ -161,7 +198,7 @@ const NotificationsPage = () => {
                               <Image
                                 fill
                                 sizes="80px"
-                                src={notification.receiver.image}
+                                src={`http://localhost:3001${notification.receiver.image}`}
                                 alt={notification.receiver.fullName}
                               />
                             )}
@@ -176,7 +213,7 @@ const NotificationsPage = () => {
                             </p>
                             <p className="text-xs flex items-center opacity-70">
                               <ClockIcon className="h-3 w-3 mr-1" />
-                              Recently
+                              {formatMessageTime(notification.updatedAt)}
                             </p>
                           </div>
                           <div className="badge badge-success">
@@ -203,7 +240,9 @@ const NotificationsPage = () => {
                   {rejectedRequests.map((notification: RequestDB) => (
                     <div
                       key={notification._id}
-                      className="card bg-base-200 shadow-sm"
+                      className={`card ${
+                        notification.isRead ? "bg-blue-100" : "bg-base-200"
+                      } shadow-sm`}
                     >
                       <div className="card-body p-4">
                         <div className="flex items-start gap-3">
@@ -212,7 +251,7 @@ const NotificationsPage = () => {
                               <Image
                                 fill
                                 sizes="80px"
-                                src={notification.receiver.image}
+                                src={`http://localhost:3001${notification.receiver.image}`}
                                 alt={notification.receiver.fullName}
                               />
                             )}
@@ -227,7 +266,7 @@ const NotificationsPage = () => {
                             </p>
                             <p className="text-xs flex items-center opacity-70">
                               <ClockIcon className="h-3 w-3 mr-1" />
-                              Recently
+                              {formatMessageTime(notification.updatedAt)}
                             </p>
                           </div>
                           <div className="badge badge-error">

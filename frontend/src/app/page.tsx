@@ -1,54 +1,48 @@
-'use client';
-import FriendCard, { getLanguageFlag } from '@/components/FriendCard';
-import NoFriendsFound from '@/components/NoFriendsFound';
-import PageLoader from '@/components/PageLoader';
-import { useRequestMutation } from '@/hooks/requestMutations';
-import { Friend, User } from '@/interfaces/allInterface';
-import { capitialize } from '@/lib/capitalize';
+"use client";
+import FriendCard, { getLanguageFlag } from "@/components/FriendCard";
+import NoFriendsFound from "@/components/NoFriendsFound";
+import PageLoader from "@/components/PageLoader";
+import { useRequestMutation } from "@/hooks/requestMutations";
+import { Friend, User } from "@/interfaces/allInterface";
+import { capitialize } from "@/lib/utils";
 import {
   getFriendRequest,
   getOutgoingFriendReqs,
   getRecommendedUsers,
   getUserFriends,
-} from '@/lib/friend.api';
-import { useQuery } from '@tanstack/react-query';
+} from "@/lib/friend.api";
+import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircleIcon,
   MapPinIcon,
   UserPlusIcon,
   UsersIcon,
-} from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { Toaster } from 'react-hot-toast';
+} from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Toaster } from "react-hot-toast";
 
 const HomePage = () => {
-  // const { user } = useAuth();
-  // const router = useRouter();
-
-  // useEffect(() => {
-  //   if (user && !user.isOnBoarded) router.replace('/onboard');
-  // }, [user, router]);
   const [outgoingRequestsIds, setOutgoingRequestsIds] = useState(new Set());
   const [incomingRequestsIds, setIncomingRequestsIds] = useState(new Set());
 
   const { data: friends = [], isLoading: loadingFriends } = useQuery({
-    queryKey: ['friends'],
+    queryKey: ["friends"],
     queryFn: getUserFriends,
   });
 
   const { data: recommendedUsers = [], isLoading: loadingUsers } = useQuery({
-    queryKey: ['users'],
+    queryKey: ["users"],
     queryFn: getRecommendedUsers,
   });
   const { data: outgoingFriendReqs } = useQuery({
-    queryKey: ['outgoingFriendReqs'],
+    queryKey: ["outgoingFriendReqs"],
     queryFn: getOutgoingFriendReqs,
   });
 
   const { data: { incomingFriendRequest } = [] } = useQuery({
-    queryKey: ['friends-request'],
+    queryKey: ["friends-request"],
     queryFn: getFriendRequest,
   });
 
@@ -63,9 +57,10 @@ const HomePage = () => {
       });
       setOutgoingRequestsIds(outgoingIds);
     }
-  }, [outgoingFriendReqs, recommendedUsers, friends]);
+  }, [outgoingFriendReqs, recommendedUsers]);
 
   useEffect(() => {
+    console.log(friends);
     const incomingIds = new Set();
     if (incomingFriendRequest && incomingFriendRequest.length > 0) {
       incomingFriendRequest.forEach((req: { sender: { _id: unknown } }) => {
@@ -73,7 +68,7 @@ const HomePage = () => {
       });
       setIncomingRequestsIds(incomingIds);
     }
-  }, [incomingFriendRequest, recommendedUsers, friends]);
+  }, [incomingFriendRequest, recommendedUsers]);
 
   if (loadingFriends || loadingUsers) return <PageLoader />;
 
@@ -154,7 +149,7 @@ const HomePage = () => {
                           <Image
                             fill
                             sizes="80px"
-                            src={user.image}
+                            src={`http://localhost:3001/${user.image}`}
                             alt={user.fullName}
                           />
                         </div>

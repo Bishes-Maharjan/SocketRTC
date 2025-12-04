@@ -1,13 +1,13 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ChatService } from 'src/chat/chat.service';
-import { StreamService } from 'src/stream/stream.service';
+
 import {
   FriendRequest,
   FriendRequestDocument,
@@ -22,13 +22,12 @@ export class UserService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(FriendRequest.name)
     private frModel: Model<FriendRequestDocument>,
-    private jwt: JwtService,
-    private streamClient: StreamService,
     private chatService: ChatService,
   ) {}
 
+  //FRIEND LOGIC:
   async getRecommendedUsers(id: string) {
-    const currentUser = await this.userModel.findById(id);
+    const currentUser = await this.userModel.findById({ _id: id });
     if (!currentUser) throw new NotFoundException('User not found');
 
     const recommendedUser = await this.userModel.find({
@@ -40,36 +39,33 @@ export class UserService {
     });
     return recommendedUser;
   }
-
-  async getMyFriends(id: string) {
-    const myFriends = await this.userModel
-      .findById(id)
-      .select('friends')
-      .populate('friends');
-    return myFriends;
-  }
-
-  async getFriendWithChatRoomId(userId: string) {
+  //used in frontend to render user with chatId with them which will
+  async getFriendWithChatRoomId(id: string) {
+    console.log('API hit');
     const myFriends = (await this.userModel
-      .findById(userId)
+      .findById({ _id: id })
       .select('friends')
-      .populate('friends')) as PopulatedUser | null;
+      .populate('friends')
+      .lean()) as PopulatedUser | null;
 
-    if (!myFriends?.friends) return [];
+    console.log('My friends', myFriends);
+    if (!myFriends) throw new NotFoundException('Friends dont exist');
 
     const result = await Promise.all(
       myFriends.friends.map(async (friend) => {
         const chatRoomId = await this.chatService.getChatRoomId(
-          userId,
+          id,
           friend._id.toString(),
         );
         return { ...friend, chatRoomId };
       }),
     );
 
+    console.log('the result', result);
     return result;
   }
 
+  //sending fr by us
   async sendFriendRequest(receiver: string, sender: string) {
     const receipent = await this.userModel.findById(receiver);
     if (!receipent) throw new BadRequestException('User doesnt exist');
@@ -96,7 +92,7 @@ export class UserService {
 
     return friendRequest;
   }
-
+  //getting fr sent to us
   async getFriendRequest(us: string) {
     const incomingFriendRequest = await this.frModel
       .find({
@@ -106,23 +102,27 @@ export class UserService {
       .populate(
         'sender',
         'fullName image nativeLanguage learningLanguage location bio',
-      );
+      )
+      .sort({ createdAt: -1 });
 
     const accpetedFriendRequest = await this.frModel
       .find({
         sender: us,
         status: 'accepted',
       })
-      .populate('receiver');
+      .populate('receiver')
+      .sort({ createdAt: -1 });
 
     const rejectedFriendRequest = await this.frModel
       .find({
         sender: us,
         status: 'rejected',
       })
-      .populate('receiver');
+      .populate('receiver')
+      .sort({ createdAt: -1 });
 
     const allFr = await this.frModel.find({});
+
     return {
       allFr,
       incomingFriendRequest,
@@ -131,6 +131,7 @@ export class UserService {
     };
   }
 
+  // used for to see if this has sender: us and fr exists to show in ui, we have alr sent fr
   async getOutGoingFriendRequest(us: string) {
     const outgoingRequest = await this.frModel
       .find({
@@ -144,6 +145,8 @@ export class UserService {
       .exec();
     return outgoingRequest;
   }
+
+  //accepting the request by updating its status
   async acceptFriendRequest(receiver: string, requestId: string) {
     const friendRequest = await this.frModel.findById(requestId);
 
@@ -174,6 +177,7 @@ export class UserService {
       message: `Friend request from ${senderDocument.fullName} accepted`,
     };
   }
+  //rejecting the fr by updating its status to rejected
   async rejectFriendRequest(receiver: string, requestId: string) {
     let friendRequest: FriendRequestDocument | null = null;
     friendRequest = await this.frModel.findById(requestId);
@@ -188,14 +192,44 @@ export class UserService {
     return { message: `Friend Request from ${sender?.fullName} rejected` };
   }
 
+  // ---------------------------------------------------------------
+  //USER LOGIC:
   async getUserById(id: string) {
     const user = await this.userModel.findById(id);
-
     return user;
   }
 
   async getAllUsers() {
     const users = await this.userModel.find({});
     return users;
+  }
+
+  //----------------------------------------------------------------
+  //NOTIFICATION LOGIC:
+  async getTotalNotification(us: string) {
+    const count = await this.frModel.countDocuments({
+      isRead: false,
+      $or: [
+        { sender: us, status: { $in: ['accepted', 'rejected'] } },
+        { receiver: us, status: 'pending' },
+      ],
+    });
+
+    return count;
+  }
+
+  async readAllNotifications(us: string) {
+    const updateAll = await this.frModel.updateMany(
+      {
+        $or: [
+          { sender: us, status: { $in: ['accepted', 'rejected'] } },
+          { receiver: us, status: 'pending' },
+        ],
+      },
+      { isRead: true },
+    );
+    if (!updateAll)
+      throw new InternalServerErrorException('Couldnt Read The Notifications');
+    return { success: true, message: 'Read All Notification' };
   }
 }

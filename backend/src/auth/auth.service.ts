@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 
 import {
@@ -14,7 +12,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bycrpt from 'bcrypt';
 import { Model } from 'mongoose';
 import { GoogleUser } from 'src/globals/googleUser.dto';
-import { StreamService } from 'src/stream/stream.service';
 import { OnBoardingDTO, SignInDTO, SignUpDTO } from 'src/user/dtos/user.dto';
 import { User, UserDocument } from 'src/user/model/user.model';
 
@@ -23,7 +20,6 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwt: JwtService,
-    private streamClient: StreamService,
   ) {}
 
   async signup(userDto: SignUpDTO) {
@@ -38,12 +34,6 @@ export class AuthService {
 
     const user: UserDocument = new this.userModel(userDto);
     await user.save();
-    await this.streamClient.upsertUser({
-      id: user.id,
-      name: user.fullName,
-      image: user.image,
-    });
-
     return this.generateJwtToken(user.id, user.email);
   }
 
@@ -74,12 +64,6 @@ export class AuthService {
         image: googleUserDto.picture,
       });
       await user.save();
-
-      await this.streamClient.upsertUser({
-        id: user.id,
-        name: user.fullName,
-        image: user.image,
-      });
     }
 
     if (!user)
@@ -119,12 +103,6 @@ export class AuthService {
   //   return dbUser;
   // }
 
-  async delAll() {
-    await this.userModel.deleteMany();
-    const result = await this.streamClient.deleteAllUser();
-    return result;
-  }
-
   async onboard(id: string, email: string, onBoardDto: OnBoardingDTO) {
     const updatedUser = await this.userModel
       .findByIdAndUpdate(
@@ -134,11 +112,7 @@ export class AuthService {
       )
       .select('-password');
     if (!updatedUser) throw new BadRequestException('User not found');
-    await this.streamClient.upsertUser({
-      id: updatedUser.id,
-      name: updatedUser.fullName,
-      image: updatedUser.image ?? '',
-    });
+
     return { success: true, user: updatedUser };
   }
 }

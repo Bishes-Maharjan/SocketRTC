@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ChatModule } from 'src/chat/chat.module';
-import { StreamModule } from 'src/stream/stream.module';
 import {
   FriendRequest,
   FriendRequestSchema,
@@ -31,7 +30,6 @@ import { UserService } from './user.service';
       }),
       inject: [ConfigService],
     }),
-    StreamModule,
     ChatModule,
   ],
   controllers: [UserController],

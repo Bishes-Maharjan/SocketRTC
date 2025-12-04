@@ -21,11 +21,14 @@ import { UserService } from './user.service';
 export class UserController {
   constructor(private userService: UserService) {}
 
-  @Get('all')
+  // -----------Render for us logic---------------
+
+  @Get('getAllUsers')
   @HttpCode(200)
   @ApiOperation({ summary: 'Get All Users' })
   async getAllUsers() {
-    return await this.userService.getAllUsers();
+    const users = await this.userService.getAllUsers();
+    return users;
   }
 
   @Get('recommendation')
@@ -46,10 +49,20 @@ export class UserController {
     const {
       user: { id },
     } = req;
-    const result = await this.userService.getMyFriends(id);
+    const result = await this.userService.getFriendWithChatRoomId(id);
     return result;
   }
 
+  //---------------Friend Request Logic------------------------
+  //Get all FR to render related to user
+  @Get('friend-request')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get Notification Friend Requests' })
+  getFriendRequest(@Req() { user: { id } }: Irequest) {
+    return this.userService.getFriendRequest(id);
+  }
+
+  // send fr
   @Post('friend-request/:id')
   @HttpCode(201)
   @ApiOperation({ summary: 'Send Friend Request' })
@@ -62,6 +75,7 @@ export class UserController {
     return this.userService.sendFriendRequest(receiver, sender);
   }
 
+  //accept fr
   @Patch('accept/friend-request/:id')
   @HttpCode(201)
   @ApiOperation({ summary: 'Accept Friend Request' })
@@ -73,6 +87,7 @@ export class UserController {
     return this.userService.acceptFriendRequest(receiver, id);
   }
 
+  //reject fr
   @Delete('reject/friend-request/:id')
   @ApiOperation({ summary: 'Reject Friend Request' })
   rejectFriendRequest(
@@ -83,18 +98,27 @@ export class UserController {
     return this.userService.rejectFriendRequest(receiver, id);
   }
 
-  @Get('friend-request')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Get Notification Friend Requests' })
-  getFriendRequest(@Req() { user: { id } }: Irequest) {
-    return this.userService.getFriendRequest(id);
-  }
-
+  //our outgoing fr to see if we have alr send the req
   @Get('outgoing-friend-request')
   @HttpCode(200)
   @ApiOperation({ summary: 'Get Out Going Friend Request' })
   getOutGoingFriendRequest(@Req() { user: { id } }: Irequest) {
     return this.userService.getOutGoingFriendRequest(id);
+  }
+
+  //------------------------Notification Logic------------------------
+  //get notification total count to show in front the unread notification
+  @Get('notification/count')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Count All User Notification' })
+  countNotification(@Req() { user: { id } }: Irequest) {
+    return this.userService.getTotalNotification(id);
+  }
+  //read all the notification
+  @Patch('notification/read')
+  @ApiOperation({ summary: 'Mark all notification as read' })
+  markAsReadNotification(@Req() { user: { id } }: Irequest) {
+    return this.userService.readAllNotifications(id);
   }
 
   @Get(':id')

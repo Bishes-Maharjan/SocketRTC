@@ -1,16 +1,22 @@
-import { LANGUAGE_TO_FLAG } from '@/constants/constants';
-import { Friend } from '@/interfaces/allInterface';
-import Image from 'next/image';
-import Link from 'next/link';
+import { LANGUAGE_TO_FLAG } from "@/constants/locations";
+import { Friend } from "@/interfaces/allInterface";
+import Image from "next/image";
+import Link from "next/link";
 
 const FriendCard = ({ friend }: { friend: Friend }) => {
+  console.log(`http://localhost:3001${friend.image}`);
   return (
     <div className="card bg-base-200 hover:shadow-md transition-shadow">
       <div className="card-body p-4">
         {/* USER INFO */}
         <div className="flex items-center gap-3 mb-3">
           <div className="avatar size-12">
-            <Image fill sizes="80px" src={friend.image} alt={friend.fullName} />
+            <Image
+              fill
+              sizes="80px"
+              src={`http://localhost:3001/${friend.image}`}
+              alt={friend.fullName}
+            />
           </div>
           <h3 className="font-semibold truncate">{friend.fullName}</h3>
         </div>

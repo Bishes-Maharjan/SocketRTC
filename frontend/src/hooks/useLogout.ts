@@ -1,21 +1,21 @@
-import { axiosInstance } from '@/lib/axios';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { axiosInstance } from "@/lib/axios";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 export const useLogout = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { mutate: logout, isPending } = useMutation({
     mutationFn: async () => {
-      const res = await axiosInstance.post('auth/logout');
+      const res = await axiosInstance.post("auth/logout");
 
       return res.data;
     },
     onSuccess: () => {
-      queryClient.setQueryData(['auth-user'], null);
+      queryClient.setQueryData(["auth-user"], null);
       setTimeout(() => {
-        router.push('/');
-      }, 1000);
+        router.push("/");
+      }, 3000);
     },
   });
 

@@ -1,32 +1,32 @@
-'use client';
-import PageLoader from '@/components/PageLoader';
-import { handleOAuthLogin } from '@/hooks/OAuth';
-import { useAuthUser } from '@/hooks/useAuthUser';
-import { axiosInstance } from '@/lib/axios';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { isAxiosError } from 'axios';
-import { ShipWheelIcon } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import singUpImage from '../../../public/signup.png';
-import toast, { Toaster } from 'react-hot-toast';
+"use client";
+import PageLoader from "@/components/PageLoader";
+import { handleOAuthLogin } from "@/hooks/OAuth";
+import { useAuthUser } from "@/hooks/useAuthUser";
+import { axiosInstance } from "@/lib/axios";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
+import { ShipWheelIcon } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
+import singUpImage from "../../../public/signup.png";
 
 const SignUpPage = () => {
   const router = useRouter();
   const { user, isLoading } = useAuthUser();
   const [isClient, setIsClient] = useState(false);
-   const [password, setPassword] = useState("");
-   const [checksUI, setChecksUI] = useState(false);
-     const inputRef = useRef<HTMLInputElement>(null);
+  const [password, setPassword] = useState("");
+  const [checksUI, setChecksUI] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const checks = {
     length: password.length >= 8,
     upper: /[A-Z]/.test(password),
     lower: /[a-z]/.test(password),
     number: /\d/.test(password),
-    symbol: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    symbol: /[!@#$%^&/*(),.?":{}|<>]/.test(password),
   };
 
   // Generate avatar index only on client side to avoid hydration mismatch
@@ -34,7 +34,10 @@ const SignUpPage = () => {
   // Click outside handler
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
+      if (
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
         setChecksUI(false); // hide checklist
       }
     }
@@ -46,10 +49,10 @@ const SignUpPage = () => {
   }, []);
 
   const [signupData, setSignupData] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    image: '', // Will be set after client mounts
+    fullName: "",
+    email: "",
+    password: "",
+    image: "", // Will be set after client mounts
   });
 
   const [err, setErr] = useState<string | null>(null);
@@ -62,36 +65,36 @@ const SignUpPage = () => {
     setAvatarIdx(idx);
     setSignupData((prev) => ({
       ...prev,
-      image: `https://avatar.iran.liara.run/public/${idx}.png`,
+      image: `http://localhost:3001/uploads/avatar.jpg`,
     }));
   }, []);
 
   // Handle redirects only after client mount
   useEffect(() => {
     if (isClient && user?.isOnBoarded) {
-      router.replace('/');
+      router.replace("/");
     } else if (isClient && user && !user.isOnBoarded) {
-      router.replace('/onboard');
+      router.replace("/onboard");
     }
   }, [user, router, isClient]);
 
   const { mutate, isPending } = useMutation({
     mutationFn: async () => {
-      await axiosInstance.post('auth/signup', signupData);
+      await axiosInstance.post("auth/signup", signupData);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['auth-user'] });
+      await queryClient.invalidateQueries({ queryKey: ["auth-user"] });
       setErr(null); // clear error on success
-      router.push('/onboard');
+      router.push("/onboard");
     },
     onError: (error) => {
-     const msg = isAxiosError(error)
-      ? Array.isArray(error.response?.data?.message)
-        ? error.response?.data?.message.join("\n") // join with newlines
-        : error.response?.data?.message
-      : error?.message || "Something went wrong!";
-    
-    toast.error(msg);
+      const msg = isAxiosError(error)
+        ? Array.isArray(error.response?.data?.message)
+          ? error.response?.data?.message.join("\n") // join with newlines
+          : error.response?.data?.message
+        : error?.message || "Something went wrong!";
+
+      toast.error(msg);
     },
   });
 
@@ -115,7 +118,7 @@ const SignUpPage = () => {
       className="h-screen flex items-center justify-center p-4 sm:p-6 md:p-8"
       data-theme="forest"
     >
-      <Toaster/>
+      <Toaster />
       <div className="border border-primary/25 flex flex-col lg:flex-row w-full max-w-5xl mx-auto bg-base-100 rounded-xl shadow-lg overflow-hidden">
         {/* SIGNUP FORM - LEFT SIDE */}
         <div className="w-full lg:w-1/2 p-4 sm:p-8 flex flex-col">
@@ -174,12 +177,11 @@ const SignUpPage = () => {
                       placeholder="john@gmail.com"
                       className="input input-bordered w-full"
                       value={signupData.email}
-                      onChange={(e) => 
+                      onChange={(e) =>
                         setSignupData({
                           ...signupData,
                           email: e.target.value,
                         })
-                        
                       }
                       required
                     />
@@ -190,41 +192,60 @@ const SignUpPage = () => {
                       <span className="label-text">Password</span>
                     </label>
                     <input
-                    ref = {inputRef}
+                      ref={inputRef}
                       type="password"
                       placeholder="********"
                       className="input input-bordered w-full"
                       value={signupData.password}
-                      onChange={(e) =>{
+                      onChange={(e) => {
                         setSignupData({
                           ...signupData,
                           password: e.target.value,
-                        })
-                        setPassword(e.target.value) } 
-                      }
-                      onKeyDown={()=> setChecksUI(true)}
-                      
+                        });
+                        setPassword(e.target.value);
+                      }}
+                      onKeyDown={() => setChecksUI(true)}
                       required
                     />
-                    {checksUI &&
-                       (<ul className="mt-2 text-sm">
-        <li className={checks.length ? "text-green-500" : "text-red-500"}>
-          • At least 8 characters
-        </li>
-        <li className={checks.upper ? "text-green-500" : "text-red-500"}>
-          • At least 1 uppercase letter
-        </li>
-        <li className={checks.lower ? "text-green-500" : "text-red-500"}>
-          • At least 1 lowercase letter
-        </li>
-        <li className={checks.number ? "text-green-500" : "text-red-500"}>
-          • At least 1 number
-        </li>
-        <li className={checks.symbol ? "text-green-500" : "text-red-500"}>
-          • At least 1 special character
-        </li>
-      </ul>)
-      }
+                    {checksUI && (
+                      <ul className="mt-2 text-sm">
+                        <li
+                          className={
+                            checks.length ? "text-green-500" : "text-red-500"
+                          }
+                        >
+                          • At least 8 characters
+                        </li>
+                        <li
+                          className={
+                            checks.upper ? "text-green-500" : "text-red-500"
+                          }
+                        >
+                          • At least 1 uppercase letter
+                        </li>
+                        <li
+                          className={
+                            checks.lower ? "text-green-500" : "text-red-500"
+                          }
+                        >
+                          • At least 1 lowercase letter
+                        </li>
+                        <li
+                          className={
+                            checks.number ? "text-green-500" : "text-red-500"
+                          }
+                        >
+                          • At least 1 number
+                        </li>
+                        <li
+                          className={
+                            checks.symbol ? "text-green-500" : "text-red-500"
+                          }
+                        >
+                          • At least 1 special character
+                        </li>
+                      </ul>
+                    )}
                   </div>
 
                   <div className="form-control">
@@ -235,11 +256,11 @@ const SignUpPage = () => {
                         required
                       />
                       <span className="text-xs leading-tight">
-                        I agree to the{' '}
+                        I agree to the{" "}
                         <span className="text-primary hover:underline">
                           terms of service
-                        </span>{' '}
-                        and{' '}
+                        </span>{" "}
+                        and{" "}
                         <span className="text-primary hover:underline">
                           privacy policy
                         </span>
@@ -248,14 +269,18 @@ const SignUpPage = () => {
                   </div>
                 </div>
 
-                <button className="btn btn-primary w-full" type="submit">
+                <button
+                  className="btn btn-primary w-full"
+                  type="submit"
+                  disabled={Object.values(checks).some((v) => v === false)}
+                >
                   {isPending ? (
                     <>
                       <span className="loading loading-spinner loading-xs"></span>
                       Loading...
                     </>
                   ) : (
-                    'Create Account'
+                    "Create Account"
                   )}
                 </button>
 
@@ -277,7 +302,7 @@ const SignUpPage = () => {
 
                 <div className="text-center mt-4">
                   <p className="text-sm">
-                    Already have an account?{' '}
+                    Already have an account?{" "}
                     <Link
                       href="/login"
                       className="text-primary hover:underline"

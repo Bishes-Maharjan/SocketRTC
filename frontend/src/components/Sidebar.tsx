@@ -1,8 +1,8 @@
-import { useAuthUser } from '@/hooks/useAuthUser';
-import { BellIcon, HomeIcon, ShipWheelIcon, UsersIcon } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useAuthUser } from "@/hooks/useAuthUser";
+import { BellIcon, HomeIcon, ShipWheelIcon, UsersIcon } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const Sidebar = () => {
   const { user: authUser } = useAuthUser();
@@ -23,7 +23,7 @@ const Sidebar = () => {
         <Link
           href="/"
           className={`btn btn-ghost justify-start w-full gap-3 px-3 normal-case ${
-            currentPath === '/' ? 'btn-active' : ''
+            currentPath === "/" ? "btn-active" : ""
           }`}
         >
           <HomeIcon className="size-5 text-base-content opacity-70" />
@@ -33,7 +33,7 @@ const Sidebar = () => {
         <Link
           href="/friends"
           className={`btn btn-ghost justify-start w-full gap-3 px-3 normal-case ${
-            currentPath === '/friends' ? 'btn-active' : ''
+            currentPath === "/friends" ? "btn-active" : ""
           }`}
         >
           <UsersIcon className="size-5 text-base-content opacity-70" />
@@ -43,7 +43,7 @@ const Sidebar = () => {
         <Link
           href="/notifications"
           className={`btn btn-ghost justify-start w-full gap-3 px-3 normal-case ${
-            currentPath === '/notifications' ? 'btn-active' : ''
+            currentPath === "/notifications" ? "btn-active" : ""
           }`}
         >
           <BellIcon className="size-5 text-base-content opacity-70" />
@@ -60,7 +60,7 @@ const Sidebar = () => {
                 <Image
                   fill
                   sizes="80px"
-                  src={authUser?.image}
+                  src={`http://localhost:3001/${authUser.image}`}
                   alt="User Avatar"
                 />
               )}

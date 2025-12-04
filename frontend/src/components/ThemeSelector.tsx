@@ -1,20 +1,20 @@
-'use client';
-import { PaletteIcon } from 'lucide-react';
-import { useEffect } from 'react';
-import { THEMES } from '../constants/constants';
-import { useThemeStore } from '../stores/useThemeStore';
+"use client";
+import { PaletteIcon } from "lucide-react";
+import { useEffect } from "react";
+import { THEMES } from "../constants/theme";
+import { useThemeStore } from "../stores/useThemeStore";
 
 const ThemeSelector = () => {
   const { theme, setTheme } = useThemeStore();
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('streamify-theme') || 'coffee';
+    const savedTheme = localStorage.getItem("streamify-theme") || "coffee";
     setTheme(savedTheme);
   }, [setTheme]);
 
   const handleThemeChange = (newTheme: string) => {
     setTheme(newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
+    document.documentElement.setAttribute("data-theme", newTheme);
   };
 
   return (
@@ -36,8 +36,8 @@ const ThemeSelector = () => {
               w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-colors
               ${
                 theme === themeOption.name
-                  ? 'bg-primary/10 text-primary'
-                  : 'hover:bg-base-content/5'
+                  ? "bg-primary/10 text-primary"
+                  : "hover:bg-base-content/5"
               }
             `}
               onClick={() => handleThemeChange(themeOption.name)}

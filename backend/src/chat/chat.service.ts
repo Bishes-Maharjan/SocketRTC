@@ -1,20 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { StreamService } from 'src/stream/stream.service';
+import { MessageService } from 'src/message/message.service';
+import { User } from 'src/user/model/user.model';
 import { Chat, ChatDocument } from './model/chat.model';
 
 @Injectable()
 export class ChatService {
   constructor(
-    private stream: StreamService,
-    @InjectModel(Chat.name) private chatModel: Model<Chat>,
+    @InjectModel(Chat.name) private chatModel: Model<ChatDocument>,
+    private messageService: MessageService,
   ) {}
-  getStreamToken(id: string) {
-    const token = this.stream.generateUserToken(id);
-
-    return token;
-  }
   async getChatRoomId(recpientId: string, userId: string) {
     const chatExist = await this.chatModel.findOne({
       members: { $all: [recpientId, userId] },
@@ -38,23 +34,50 @@ export class ChatService {
     return chat;
   }
 
-  // async getAllChatRooms(userId: string): Promise<any[]> {
-  //   const chats = await this.chatModel.find({ members: { $in: [userId] } });
+  async getAllChatRooms(
+    userId: string,
+    { limit, page }: { limit: number; page: number },
+  ): Promise<{
+    chats: Array<any>; // Use 'any' for now, or create a proper interface
+    hasMore: boolean;
+  }> {
+    const skip = (page - 1) * limit;
+    const chats = await this.chatModel
+      .find({ members: { $in: [userId] } })
+      .populate<{ members: User[] }>('members')
+      .limit(limit || 20)
+      .skip(skip)
+      .exec();
 
-  //   const chattingPartnerPromises = chats.map(async (chat) => {
-  //     const partnerId = chat.members.find((member) => member !== userId);
-  //     if (!partnerId) throw new NotFoundException('Partner Id doesnt exist');
+    const result = await Promise.all(
+      chats.map(async (chat) => {
+        const { messages, unreadCount } =
+          await this.messageService.getRoomMessagesWithItsUnreadCount(
+            userId,
+            String(chat._id),
+            { limit, page },
+          );
 
-  //     const user = await this.userService.getUserById(partnerId);
+        return {
+          ...chat.toObject(),
+          members: chat.members.find(
+            (member) => member._id.toString() != userId,
+          ),
+          messages,
+          unreadCount,
+        };
+      }),
+    );
 
-  //     return {
-  //       ...user,
-  //       roomId: chat._id,
-  //     };
-  //   });
+    const total = await this.chatModel.countDocuments({
+      members: { $in: [userId] },
+    });
 
-  //   return Promise.all(chattingPartnerPromises);
-  // }
+    return {
+      chats: result,
+      hasMore: skip + result.length < total,
+    };
+  }
 
   // async getRoomIdByUserId(friendsId: string[]) {
   //   const chat = await this.chatModel.findOne({ members: { $: [userId] } });

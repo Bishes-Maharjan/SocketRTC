@@ -3,7 +3,6 @@ import {
   BadRequestException,
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   Post,
@@ -121,12 +120,7 @@ export class AuthController {
     return this.authService.getMe(req.user.id);
   }
 
-  @Delete()
-  @HttpCode(200)
-  delAllUser() {
-    return this.authService.delAll();
-  }
-
+  //onboard
   @UseGuards(JwtGuard)
   @Post('onboard')
   @ApiOperation({ summary: 'Complete onboarding' })

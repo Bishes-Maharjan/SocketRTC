@@ -77,10 +77,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (!client.data.user?.id) throw new WsException('Sender Id is misiing');
 
+    const chatPartner =
+      roomExists.members.find((id) => id != client.data.user?.id) || '';
     await this.messageService.registerMessage(
       roomId,
       message,
-      client.data.user?.id ?? '',
+      client.data.user?.id || '',
+      chatPartner,
     );
 
     this.server.to(roomId).emit('receive-message', {

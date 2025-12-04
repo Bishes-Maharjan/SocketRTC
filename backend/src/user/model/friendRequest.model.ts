@@ -25,6 +25,12 @@ export class FriendRequest {
     default: 'pending',
   })
   status: string;
+
+  @Prop({
+    type: Boolean,
+    default: false,
+  })
+  isRead: boolean;
 }
 
 export type FriendRequestDocument = Document & FriendRequest;

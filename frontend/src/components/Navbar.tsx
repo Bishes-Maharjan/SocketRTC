@@ -1,18 +1,25 @@
-'use client';
+"use client";
 
-import { useAuthUser } from '@/hooks/useAuthUser';
-import { useLogout } from '@/hooks/useLogout';
-import { BellIcon, LogOutIcon, ShipWheelIcon } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import PageLoader from './PageLoader';
-import ThemeSelector from './ThemeSelector';
+import { useAuthUser } from "@/hooks/useAuthUser";
+import { useLogout } from "@/hooks/useLogout";
+import { getNotificationCount } from "@/lib/notification";
+import { useQuery } from "@tanstack/react-query";
+import { BellIcon, LogOutIcon, ShipWheelIcon } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import PageLoader from "./PageLoader";
+import ThemeSelector from "./ThemeSelector";
 
 const Navbar = () => {
   const { user: authUser } = useAuthUser();
   const location = usePathname();
-  const isChatPage = location?.startsWith('/chat');
+  const isChatPage = location?.startsWith("/chat");
+
+  const { data: notifications = 0 } = useQuery({
+    queryKey: ["notification"],
+    queryFn: getNotificationCount,
+  });
 
   const { logout: logoutMutation, isPending } = useLogout();
   if (isPending) return <PageLoader />;
@@ -26,7 +33,7 @@ const Navbar = () => {
             <Link
               href="/"
               className={`flex items-center gap-2.5 transition-opacity duration-200 ${
-                isChatPage ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                isChatPage ? "opacity-100" : "opacity-0 pointer-events-none"
               }`}
             >
               <ShipWheelIcon className="size-8 text-primary shrink-0" />
@@ -45,6 +52,7 @@ const Navbar = () => {
             <Link href="/notifications" className="flex-shrink-0">
               <button className="btn btn-ghost btn-circle btn-sm sm:btn-md hover:bg-base-200 transition-colors">
                 <BellIcon className="h-5 w-5 sm:h-6 sm:w-6 text-base-content/70" />
+                <sup>{notifications != 0 && notifications}</sup>
               </button>
             </Link>
 
@@ -58,7 +66,7 @@ const Navbar = () => {
               <div className="avatar flex-shrink-0">
                 <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full ring-2 ring-base-300 hover:ring-primary transition-all duration-200">
                   <Image
-                    src={authUser.image}
+                    src={`http://localhost:3001/${authUser.image}`}
                     alt="User Avatar"
                     width={36}
                     height={36}

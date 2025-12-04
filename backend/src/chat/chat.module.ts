@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MessageModule } from 'src/message/message.module';
-import { StreamModule } from 'src/stream/stream.module';
+
 import { ChatController } from './chat.controller';
 // import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
@@ -13,7 +13,6 @@ import { Chat, ChatSchema } from './model/chat.model';
 
 @Module({
   imports: [
-    StreamModule,
     MongooseModule.forFeature([
       {
         name: Chat.name,
