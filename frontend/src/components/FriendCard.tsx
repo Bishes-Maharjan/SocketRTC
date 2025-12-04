@@ -1,5 +1,6 @@
 import { LANGUAGE_TO_FLAG } from "@/constants/locations";
 import { Friend } from "@/interfaces/allInterface";
+import { getImage } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -14,7 +15,7 @@ const FriendCard = ({ friend }: { friend: Friend }) => {
             <Image
               fill
               sizes="80px"
-              src={`http://localhost:3001/${friend.image}`}
+              src={getImage(friend.provider, friend.image)}
               alt={friend.fullName}
             />
           </div>

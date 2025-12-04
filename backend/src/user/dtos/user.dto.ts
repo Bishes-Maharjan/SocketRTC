@@ -42,7 +42,7 @@ export class SignInDTO {
 
   @ApiProperty({ type: String, required: true, example: '123' })
   @IsString()
-  @MinLength(5)
+  @MinLength(2)
   @MaxLength(50)
   password: string;
 }
@@ -50,7 +50,7 @@ export class SignInDTO {
 export class OnBoardingDTO {
   @ApiProperty({ type: String, required: true, example: 'Bishes Maharjan' })
   @IsString()
-  @MinLength(5)
+  @MinLength(3)
   @MaxLength(50)
   fullName: string;
 
@@ -66,19 +66,19 @@ export class OnBoardingDTO {
 
   @ApiProperty({ type: String, required: true, example: 'Nepali' })
   @IsString()
-  @MinLength(5)
+  @MinLength(3)
   @MaxLength(50)
   nativeLanguage: string;
 
   @ApiProperty({ type: String, required: true, example: 'Japanese' })
   @IsString()
-  @MinLength(5)
+  @MinLength(3)
   @MaxLength(50)
   learningLanguage: string;
 
   @ApiProperty({ type: String, required: true, example: 'Nepal' })
   @IsString()
-  @MinLength(4)
+  @MinLength(3)
   @MaxLength(50)
   location: string;
 

@@ -121,6 +121,12 @@ export class UserController {
     return this.userService.readAllNotifications(id);
   }
 
+  @Delete('friend-request/deleteAll')
+  @ApiOperation({ summary: 'Delete all FR' })
+  delAllFr() {
+    return this.userService.delAllFr();
+  }
+
   @Get(':id')
   @HttpCode(200)
   @ApiOperation({ summary: 'Get user' })

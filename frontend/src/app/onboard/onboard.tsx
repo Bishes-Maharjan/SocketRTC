@@ -25,6 +25,7 @@ type User = {
   image: string;
   location: string;
   _id: string;
+  provider: string;
   isOnBoarded: boolean;
 };
 
@@ -155,9 +156,11 @@ const OnboardingForm = ({
     nativeLanguage: authUser?.nativeLanguage || "",
     learningLanguage: authUser?.learningLanguage || "",
     location: authUser?.location || "",
-    image: authUser?.image || "uploads/avatar.jpg",
+    image:
+      authUser?.provider == "google"
+        ? authUser?.image
+        : `${process.env.NEXT_PUBLIC_API_URL}uploads/avatar.jpg`,
   }));
-  console.log(formState.image);
 
   const [errors, setErrors] = useState({
     fullName: "",
@@ -240,7 +243,7 @@ const OnboardingForm = ({
                     fill
                     sizes="112px"
                     className="object-cover"
-                    src={`http://localhost:3001/${formState.image}`}
+                    src={formState.image}
                     alt="Profile Preview"
                   />
                 ) : (

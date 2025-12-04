@@ -1,4 +1,5 @@
 import { useAuthUser } from "@/hooks/useAuthUser";
+import { getImage } from "@/lib/utils";
 import { BellIcon, HomeIcon, ShipWheelIcon, UsersIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -60,7 +61,7 @@ const Sidebar = () => {
                 <Image
                   fill
                   sizes="80px"
-                  src={`http://localhost:3001/${authUser.image}`}
+                  src={getImage(authUser.provider, authUser.image)}
                   alt="User Avatar"
                 />
               )}

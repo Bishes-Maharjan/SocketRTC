@@ -3,6 +3,7 @@
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useLogout } from "@/hooks/useLogout";
 import { getNotificationCount } from "@/lib/notification";
+import { getImage } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { BellIcon, LogOutIcon, ShipWheelIcon } from "lucide-react";
 import Image from "next/image";
@@ -23,21 +24,22 @@ const Navbar = () => {
 
   const { logout: logoutMutation, isPending } = useLogout();
   if (isPending) return <PageLoader />;
-
   return (
     <nav className="sticky top-0 z-50 bg-base-100/80 backdrop-blur-md border-b border-base-200">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 w-full">
-          {/* Logo Section */}
+          {/* Logo Section - Always visible on mobile, hidden on lg screens ONLY when sidebar is present (non-chat pages) */}
           <div className="flex-shrink-0">
             <Link
               href="/"
               className={`flex items-center gap-2.5 transition-opacity duration-200 ${
-                isChatPage ? "opacity-100" : "opacity-0 pointer-events-none"
+                isChatPage
+                  ? "opacity-100"
+                  : "lg:opacity-0 lg:pointer-events-none"
               }`}
             >
               <ShipWheelIcon className="size-8 text-primary shrink-0" />
-              <span className="hidden sm:block text-2xl font-bold font-mono bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary tracking-wider">
+              <span className="text-xl sm:text-2xl font-bold font-mono bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary tracking-wider">
                 Streamify
               </span>
             </Link>
@@ -50,10 +52,16 @@ const Navbar = () => {
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Notifications */}
             <Link href="/notifications" className="flex-shrink-0">
-              <button className="btn btn-ghost btn-circle btn-sm sm:btn-md hover:bg-base-200 transition-colors">
-                <BellIcon className="h-5 w-5 sm:h-6 sm:w-6 text-base-content/70" />
-                <sup>{notifications != 0 && notifications}</sup>
-              </button>
+              <div className="indicator">
+                {notifications !== 0 && (
+                  <span className="indicator-item badge badge-error badge-xs">
+                    {notifications}
+                  </span>
+                )}
+                <button className="btn btn-ghost btn-circle btn-sm sm:btn-md hover:bg-base-200 transition-colors">
+                  <BellIcon className="h-5 w-5 sm:h-6 sm:w-6 text-base-content/70" />
+                </button>
+              </div>
             </Link>
 
             {/* Theme Selector */}
@@ -66,7 +74,7 @@ const Navbar = () => {
               <div className="avatar flex-shrink-0">
                 <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full ring-2 ring-base-300 hover:ring-primary transition-all duration-200">
                   <Image
-                    src={`http://localhost:3001/${authUser.image}`}
+                    src={getImage(authUser.provider, authUser.image)}
                     alt="User Avatar"
                     width={36}
                     height={36}

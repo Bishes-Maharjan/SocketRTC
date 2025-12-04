@@ -4,13 +4,13 @@ import NoFriendsFound from "@/components/NoFriendsFound";
 import PageLoader from "@/components/PageLoader";
 import { useRequestMutation } from "@/hooks/requestMutations";
 import { Friend, User } from "@/interfaces/allInterface";
-import { capitialize } from "@/lib/utils";
 import {
   getFriendRequest,
   getOutgoingFriendReqs,
   getRecommendedUsers,
   getUserFriends,
 } from "@/lib/friend.api";
+import { capitialize, getImage } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircleIcon,
@@ -149,7 +149,7 @@ const HomePage = () => {
                           <Image
                             fill
                             sizes="80px"
-                            src={`http://localhost:3001/${user.image}`}
+                            src={getImage(user.provider, user.image)}
                             alt={user.fullName}
                           />
                         </div>

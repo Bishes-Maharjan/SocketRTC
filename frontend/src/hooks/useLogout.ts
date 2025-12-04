@@ -12,6 +12,7 @@ export const useLogout = () => {
       return res.data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries();
       queryClient.setQueryData(["auth-user"], null);
       setTimeout(() => {
         router.push("/");

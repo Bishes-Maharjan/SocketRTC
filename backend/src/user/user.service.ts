@@ -99,10 +99,7 @@ export class UserService {
         receiver: us,
         status: 'pending',
       })
-      .populate(
-        'sender',
-        'fullName image nativeLanguage learningLanguage location bio',
-      )
+      .populate('sender')
       .sort({ createdAt: -1 });
 
     const accpetedFriendRequest = await this.frModel
@@ -149,13 +146,13 @@ export class UserService {
   //accepting the request by updating its status
   async acceptFriendRequest(receiver: string, requestId: string) {
     const friendRequest = await this.frModel.findById(requestId);
-
     if (!friendRequest) throw new NotFoundException('fr doesnt exist');
 
     if (friendRequest.receiver.toString() !== receiver)
       throw new BadRequestException('You cant accept the friend request');
 
     friendRequest.status = 'accepted';
+    friendRequest.isRead = false;
     await friendRequest.save();
     const { sender } = friendRequest;
 
@@ -183,11 +180,15 @@ export class UserService {
     friendRequest = await this.frModel.findById(requestId);
 
     if (!friendRequest) throw new NotFoundException('fr doesnt exist');
+
     const sender = await this.userModel.findById(friendRequest.sender);
     if (friendRequest.receiver.toString() !== receiver)
       throw new BadRequestException('You cant deny the friend request');
 
-    await this.frModel.findByIdAndUpdate(requestId, { status: 'rejected' });
+    await this.frModel.findByIdAndUpdate(requestId, {
+      status: 'rejected',
+      isRead: false,
+    });
 
     return { message: `Friend Request from ${sender?.fullName} rejected` };
   }
@@ -217,19 +218,28 @@ export class UserService {
 
     return count;
   }
-
   async readAllNotifications(us: string) {
     const updateAll = await this.frModel.updateMany(
       {
+        isRead: false,
         $or: [
           { sender: us, status: { $in: ['accepted', 'rejected'] } },
           { receiver: us, status: 'pending' },
         ],
       },
-      { isRead: true },
+      { $set: { isRead: true } },
     );
-    if (!updateAll)
-      throw new InternalServerErrorException('Couldnt Read The Notifications');
-    return { success: true, message: 'Read All Notification' };
+
+    return {
+      success: true,
+      message: 'Read All Notification',
+      modifiedCount: updateAll.modifiedCount,
+    };
+  }
+
+  async delAllFr() {
+    const del = await this.frModel.deleteMany({});
+    if (!del) throw new InternalServerErrorException('Something went wrong');
+    return { success: true, message: 'deleted all fr' };
   }
 }

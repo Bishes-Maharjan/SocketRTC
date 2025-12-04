@@ -6,8 +6,8 @@ import {
   getFriendRequest,
   rejectFriendRequest,
 } from "@/lib/friend.api";
-import { readAllNotifications } from "@/lib/notification";
-import { formatMessageTime } from "@/lib/utils";
+import { getNotificationCount, readAllNotifications } from "@/lib/notification";
+import { formatMessageTime, getImage } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import {
@@ -22,18 +22,31 @@ import { useRouter } from "next/navigation";
 import toast, { ErrorIcon, Toaster } from "react-hot-toast";
 
 const NotificationsPage = () => {
+  // to invalidate quereis
   const queryClient = useQueryClient();
+  //navigation
   const router = useRouter();
+
+  //Get notification count to disable the mark all as read button
+  const { data: notificationCount = 0 } = useQuery({
+    queryKey: ["notification"],
+    queryFn: getNotificationCount,
+  });
+  //List of friend request
   const { data: friendRequests, isLoading } = useQuery({
     queryKey: ["friendRequests"],
     queryFn: getFriendRequest,
   });
-
+  console.log(friendRequests?.incomingFriendRequest);
+  // func to read all notifications
   const { mutate: readAllNotification } = useMutation({
     mutationFn: readAllNotifications,
     onSuccess: (data) => {
       toast.success(data.message);
-      queryClient.invalidateQueries({ queryKey: ["notification"] });
+      queryClient.invalidateQueries({
+        queryKey: ["notification"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
     },
     onError: (error) => {
       if (error && isAxiosError(error)) {
@@ -41,6 +54,8 @@ const NotificationsPage = () => {
       }
     },
   });
+
+  //Accept FR function
   const {
     mutate: acceptRequestMutation,
     isPending: isAcceptPending,
@@ -51,6 +66,8 @@ const NotificationsPage = () => {
       toast.success(data.message);
       queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
       queryClient.invalidateQueries({ queryKey: ["friends"] });
+      queryClient.invalidateQueries({ queryKey: ["notification"] });
+
       setTimeout(() => {
         router.refresh();
       }, 1000);
@@ -62,6 +79,7 @@ const NotificationsPage = () => {
     },
   });
 
+  //Reject FR functions
   const { mutate: rejectRequestMutation, isPending: isRejectPending } =
     useMutation({
       mutationFn: rejectFriendRequest,
@@ -69,9 +87,11 @@ const NotificationsPage = () => {
         toast.success(data.message);
         queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
         queryClient.invalidateQueries({ queryKey: ["friends"] });
+        queryClient.invalidateQueries({ queryKey: ["notification"] });
       },
     });
 
+  //The mapped notifications
   const incomingRequests = friendRequests?.incomingFriendRequest || [];
   const acceptedRequests = friendRequests?.accpetedFriendRequest || [];
   const rejectedRequests = friendRequests?.rejectedFriendRequest || [];
@@ -86,11 +106,18 @@ const NotificationsPage = () => {
           </h1>
 
           <button
+            disabled={notificationCount == 0}
             onClick={() => readAllNotification()}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-white hover:bg-primary/80 transition"
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-white ${
+              notificationCount != 0 && "hover:bg-primary/80"
+            } transition`}
           >
             <CheckCheckIcon className="h-5 w-5" />
-            <span className="hidden sm:block">Mark all as read</span>
+            <span className="hidden sm:block">
+              {notificationCount != 0
+                ? "Mark all as read"
+                : "All Notifications Read"}
+            </span>
           </button>
         </div>
 
@@ -126,7 +153,10 @@ const NotificationsPage = () => {
                               <Image
                                 sizes="80px"
                                 fill
-                                src={`http://localhost:3001${request.sender.image}`}
+                                src={getImage(
+                                  request.sender.provider,
+                                  request.sender.image
+                                )}
                                 alt={request.sender.fullName}
                               />
                             </div>
@@ -198,7 +228,10 @@ const NotificationsPage = () => {
                               <Image
                                 fill
                                 sizes="80px"
-                                src={`http://localhost:3001${notification.receiver.image}`}
+                                src={getImage(
+                                  notification.receiver.provider,
+                                  notification.receiver.image
+                                )}
                                 alt={notification.receiver.fullName}
                               />
                             )}
@@ -251,7 +284,10 @@ const NotificationsPage = () => {
                               <Image
                                 fill
                                 sizes="80px"
-                                src={`http://localhost:3001${notification.receiver.image}`}
+                                src={getImage(
+                                  notification.receiver.provider,
+                                  notification.receiver.image
+                                )}
                                 alt={notification.receiver.fullName}
                               />
                             )}

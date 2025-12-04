@@ -1,12 +1,4 @@
-export interface Friend {
-  _id: string;
-  fullName: string;
-  image: string;
-  nativeLanguage: string;
-  learningLanguage: string;
-  location: string;
-  bio: string;
-}
+export type Friend = User;
 
 export interface User {
   _id: string;
@@ -15,6 +7,7 @@ export interface User {
   nativeLanguage: string;
   learningLanguage: string;
   location: string;
+  provider: string;
   bio: string;
 }
 

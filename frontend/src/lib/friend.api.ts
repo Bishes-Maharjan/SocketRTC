@@ -14,8 +14,6 @@ export const getRecommendedUsers = async () => {
 
 export const getUserFriends = async () => {
   const res = await axiosInstance.get("user/friends");
-
-  console.log("this is friends", res.data);
   return res.data;
 };
 

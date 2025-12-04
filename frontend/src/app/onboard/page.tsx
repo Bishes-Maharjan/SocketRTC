@@ -1,18 +1,19 @@
 // app/onboard/page.tsx
-'use client';
-import { useAuthUser } from '@/hooks/useAuthUser';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import OnboardingForm from './onboard';
+"use client";
+import { useAuthUser } from "@/hooks/useAuthUser";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import OnboardingForm from "./onboard";
 
 export default function OnboardingPage() {
   const { user, isLoading } = useAuthUser();
   const router = useRouter();
+  console.log(user);
 
   useEffect(() => {
     // If not loading and no user, redirect to login
     if (!isLoading && !user) {
-      router.push('/login');
+      router.push("/login");
     }
   }, [user, isLoading, router]);
 
