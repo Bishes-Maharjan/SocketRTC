@@ -25,3 +25,38 @@ export enum Status {
   Accepted = "accepted",
   Rejected = "rejected",
 }
+
+export interface Message {
+  _id: string;
+  sender: string;
+  to: string;
+  roomId: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatRoom {
+  _id: string;
+  members: User;
+  messages: Message[];
+  unreadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatsResponse {
+  data: {
+    chats: ChatRoom[];
+    hasMore: boolean;
+  };
+}
+
+export interface MessagesResponse {
+  data: {
+    messages: Message[];
+    unreadCount: number;
+    hasMore: boolean;
+  };
+}

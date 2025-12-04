@@ -1,26 +1,25 @@
-'use client';
-import { ShipWheelIcon } from 'lucide-react';
-import singUpImage from '../../../public/signup.png';
+"use client";
+import { ShipWheelIcon } from "lucide-react";
+import singUpImage from "../../../public/signup.png";
 
-import { useAuth } from '@/auth/AuthProvider';
-import { handleOAuthLogin } from '@/hooks/OAuth';
-import { axiosInstance } from '@/lib/axios';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { isAxiosError } from 'axios';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import toast, { Toaster } from 'react-hot-toast';
+import { useAuth } from "@/auth/AuthProvider";
+import { handleOAuthLogin } from "@/hooks/OAuth";
+import { axiosInstance } from "@/lib/apis/axios";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
 
 const LoginPage = () => {
   const { user, isLoading } = useAuth();
   const [isClient, setIsClient] = useState(false);
-  
 
   const [loginData, setLoginData] = useState({
-    email: '',
-    password: '',
+    email: "",
+    password: "",
   });
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -32,9 +31,9 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (isClient && user?.isOnBoarded) {
-      router.replace('/');
+      router.replace("/");
     } else if (isClient && user && !user.isOnBoarded) {
-      router.replace('/onboard');
+      router.replace("/onboard");
     }
   }, [user, router, isClient]);
 
@@ -44,23 +43,23 @@ const LoginPage = () => {
     mutate: loginMutation,
   } = useMutation({
     mutationFn: async (userData: typeof loginData) => {
-      const res = await axiosInstance.post('auth/signin', userData);
+      const res = await axiosInstance.post("auth/signin", userData);
       return res.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auth-user'] });
+      queryClient.invalidateQueries({ queryKey: ["auth-user"] });
       setTimeout(() => {
-        router.replace('/');
+        router.replace("/");
       }, 500);
     },
     onError: (error) => {
-    const msg = isAxiosError(error)
-  ? Array.isArray(error.response?.data?.message)
-    ? error.response?.data?.message.join("\n") // join with newlines
-    : error.response?.data?.message
-  : error?.message || "Something went wrong!";
+      const msg = isAxiosError(error)
+        ? Array.isArray(error.response?.data?.message)
+          ? error.response?.data?.message.join("\n") // join with newlines
+          : error.response?.data?.message
+        : error?.message || "Something went wrong!";
 
-toast.error(msg);
+      toast.error(msg);
     },
   });
 
@@ -141,17 +140,14 @@ toast.error(msg);
                       placeholder="••••••••"
                       className="input input-bordered w-full"
                       value={loginData.password}
-                      onChange={(e) =>
-                        {setLoginData({
+                      onChange={(e) => {
+                        setLoginData({
                           ...loginData,
                           password: e.target.value,
                         });
-
-                      }
-                      }
+                      }}
                       required
                     />
-                       
                   </div>
 
                   <button
@@ -165,13 +161,13 @@ toast.error(msg);
                         Signing in...
                       </>
                     ) : (
-                      'Sign In'
+                      "Sign In"
                     )}
                   </button>
 
                   <div className="text-center mt-4">
                     <p className="text-sm">
-                      Don&apos;t have an account?{' '}
+                      Don&apos;t have an account?{" "}
                       <Link
                         href="/signup"
                         className="text-primary hover:underline"

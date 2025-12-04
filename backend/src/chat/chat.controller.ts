@@ -18,7 +18,7 @@ export class ChatController {
   constructor(private chatService: ChatService) {}
   @UseGuards(JwtGuard)
   @Get()
-  async getRoomId(
+  async getAllChat(
     @Query() query: paginationQuery,
     @Req() { user: { id } }: Irequest,
   ) {

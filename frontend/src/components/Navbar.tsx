@@ -2,7 +2,7 @@
 
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useLogout } from "@/hooks/useLogout";
-import { getNotificationCount } from "@/lib/notification";
+import { getNotificationCount } from "@/lib/apis/notification.api";
 import { getImage } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { BellIcon, LogOutIcon, ShipWheelIcon } from "lucide-react";

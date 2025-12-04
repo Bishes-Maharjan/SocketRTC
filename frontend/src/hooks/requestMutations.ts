@@ -1,4 +1,4 @@
-import { sendFriendRequest } from "@/lib/friend.api";
+import { sendFriendRequest } from "@/lib/apis/friend.api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 

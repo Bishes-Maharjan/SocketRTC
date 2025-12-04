@@ -9,7 +9,7 @@ import {
   getOutgoingFriendReqs,
   getRecommendedUsers,
   getUserFriends,
-} from "@/lib/friend.api";
+} from "@/lib/apis/friend.api";
 import { capitialize, getImage } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -60,7 +60,7 @@ const HomePage = () => {
   }, [outgoingFriendReqs, recommendedUsers]);
 
   useEffect(() => {
-    console.log(friends);
+
     const incomingIds = new Set();
     if (incomingFriendRequest && incomingFriendRequest.length > 0) {
       incomingFriendRequest.forEach((req: { sender: { _id: unknown } }) => {

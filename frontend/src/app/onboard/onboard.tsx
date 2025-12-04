@@ -1,6 +1,6 @@
 "use client";
 import { COUNTRIES, LANGUAGES } from "@/constants/locations";
-import { axiosInstance } from "@/lib/axios";
+import { axiosInstance } from "@/lib/apis/axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import {
@@ -274,7 +274,6 @@ const OnboardingForm = ({
                         ...prev,
                         image: res.data.url,
                       }));
-                      console.log(res.data.url);
                     }}
                   />
                 </label>

@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 const FriendCard = ({ friend }: { friend: Friend }) => {
-  console.log(`http://localhost:3001${friend.image}`);
   return (
     <div className="card bg-base-200 hover:shadow-md transition-shadow">
       <div className="card-body p-4">

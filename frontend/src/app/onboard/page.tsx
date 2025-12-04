@@ -8,7 +8,7 @@ import OnboardingForm from "./onboard";
 export default function OnboardingPage() {
   const { user, isLoading } = useAuthUser();
   const router = useRouter();
-  console.log(user);
+
 
   useEffect(() => {
     // If not loading and no user, redirect to login

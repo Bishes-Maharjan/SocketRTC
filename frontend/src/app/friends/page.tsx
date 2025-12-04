@@ -1,16 +1,16 @@
-'use client';
-import FriendCard from '@/components/FriendCard';
-import NoFriendsFound from '@/components/NoFriendsFound';
-import { Friend } from '@/interfaces/allInterface';
-import { getUserFriends } from '@/lib/friend.api';
-import { useQuery } from '@tanstack/react-query';
-import { UsersIcon } from 'lucide-react';
-import Link from 'next/link';
-import { Toaster } from 'react-hot-toast';
+"use client";
+import FriendCard from "@/components/FriendCard";
+import NoFriendsFound from "@/components/NoFriendsFound";
+import { Friend } from "@/interfaces/allInterface";
+import { getUserFriends } from "@/lib/apis/friend.api";
+import { useQuery } from "@tanstack/react-query";
+import { UsersIcon } from "lucide-react";
+import Link from "next/link";
+import { Toaster } from "react-hot-toast";
 
 function FriendsPage() {
   const { data: friends = [], isLoading: loadingFriends } = useQuery({
-    queryKey: ['friends'],
+    queryKey: ["friends"],
     queryFn: getUserFriends,
   });
 

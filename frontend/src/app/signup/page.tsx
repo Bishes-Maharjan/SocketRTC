@@ -2,7 +2,7 @@
 import PageLoader from "@/components/PageLoader";
 import { handleOAuthLogin } from "@/hooks/OAuth";
 import { useAuthUser } from "@/hooks/useAuthUser";
-import { axiosInstance } from "@/lib/axios";
+import { axiosInstance } from "@/lib/apis/axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { ShipWheelIcon } from "lucide-react";

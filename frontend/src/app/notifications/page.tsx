@@ -5,8 +5,11 @@ import {
   acceptFriendRequest,
   getFriendRequest,
   rejectFriendRequest,
-} from "@/lib/friend.api";
-import { getNotificationCount, readAllNotifications } from "@/lib/notification";
+} from "@/lib/apis/friend.api";
+import {
+  getNotificationCount,
+  readAllNotifications,
+} from "@/lib/apis/notification.api";
 import { formatMessageTime, getImage } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
@@ -37,7 +40,7 @@ const NotificationsPage = () => {
     queryKey: ["friendRequests"],
     queryFn: getFriendRequest,
   });
-  console.log(friendRequests?.incomingFriendRequest);
+
   // func to read all notifications
   const { mutate: readAllNotification } = useMutation({
     mutationFn: readAllNotifications,
