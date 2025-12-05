@@ -3,6 +3,7 @@ import { ChatRoom, Message, MessagesResponse } from "@/interfaces/allInterface";
 import { getRoomMessageWithItsUnreadCount } from "@/lib/apis/chat.api";
 import { getImage } from "@/lib/utils";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2Icon } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
@@ -17,6 +18,9 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const loadMoreObserverRef = useRef<HTMLDivElement>(null);
   const [realtimeMessages, setRealtimeMessages] = useState<Message[]>([]);
   const queryClient = useQueryClient();
+  const isInitialLoadRef = useRef(true);
+  const isFetchingOlderMessagesRef = useRef(false);
+  const previousMessageCountRef = useRef(0);
 
   const {
     data: messagesData,
@@ -45,7 +49,25 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   useEffect(() => {
     setRealtimeMessages([]);
     setNewMessage("");
+    isInitialLoadRef.current = true;
+    previousMessageCountRef.current = 0;
   }, [chat._id]);
+
+  // Sync realtimeMessages with messages query cache updates
+  // This ensures messages received via global socket are shown in ChatWindow
+  useEffect(() => {
+    if (!messagesData) return;
+
+    const allFetchedMessages =
+      messagesData.pages.flatMap((page) => page.data.messages) || [];
+    const fetchedMessageIds = new Set(allFetchedMessages.map((m) => m._id));
+
+    // Remove messages from realtimeMessages that are now in the fetched messages
+    // This happens when messages arrive via global socket and update the cache
+    setRealtimeMessages((prev) =>
+      prev.filter((msg) => !fetchedMessageIds.has(msg._id))
+    );
+  }, [messagesData]);
 
   // Socket connection
   // In ChatWindow.tsx, update the socket connection effect:
@@ -91,6 +113,46 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         updatedAt: data.updatedAt,
       };
 
+      // Update messages query cache - only if message doesn't exist
+      queryClient.setQueryData(["messages", chat._id], (oldData: any) => {
+        if (!oldData) return oldData;
+
+        // Check all pages for existing message
+        const existingMessageIds = new Set(
+          oldData.pages.flatMap((page: any) =>
+            page.data.messages.map((m: Message) => m._id).filter(Boolean)
+          )
+        );
+
+        if (existingMessageIds.has(newMsg._id)) {
+          return oldData; // Message already exists, don't add duplicate
+        }
+
+        // Add to first page (most recent messages)
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any, index: number) => {
+            if (index === 0) {
+              // Check if message already exists in this page
+              const pageMessageIds = new Set(
+                page.data.messages.map((m: Message) => m._id).filter(Boolean)
+              );
+              if (pageMessageIds.has(newMsg._id)) {
+                return page; // Already exists in this page
+              }
+              return {
+                ...page,
+                data: {
+                  ...page.data,
+                  messages: [newMsg, ...page.data.messages],
+                },
+              };
+            }
+            return page;
+          }),
+        };
+      });
+
       // ✅ Optimistically update the chat list with new message
       queryClient.setQueryData(["chats", user?._id], (oldData: any) => {
         if (!oldData) return oldData;
@@ -101,21 +163,41 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
             ...page,
             data: {
               ...page.data,
-              chats: page.data.chats.map((c: ChatRoom) =>
-                c._id === chat._id
-                  ? {
-                      ...c,
-                      messages: [newMsg, ...(c.messages || [])],
-                      unreadCount: 0, // Keep at 0 since we're in active chat
-                    }
-                  : c
-              ),
+              chats: page.data.chats.map((c: ChatRoom) => {
+                if (c._id === chat._id) {
+                  const existingIds = new Set(
+                    (c.messages || []).map((m: Message) => m._id)
+                  );
+                  // Don't add duplicate messages
+                  if (existingIds.has(newMsg._id)) {
+                    return c;
+                  }
+                  return {
+                    ...c,
+                    messages: [newMsg], // Keep only latest message (matching backend response)
+                    unreadCount: 0, // Keep at 0 since we're in active chat
+                  };
+                }
+                return c;
+              }),
             },
           })),
         };
       });
 
-      setRealtimeMessages((prev) => [...prev, newMsg]);
+      // Only add to realtimeMessages if not already in fetched messages
+      const fetchedIds = new Set(
+        messagesData?.pages
+          .flatMap((page) => page.data.messages)
+          .map((m) => m._id) || []
+      );
+      if (!fetchedIds.has(newMsg._id)) {
+        setRealtimeMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m._id));
+          if (existingIds.has(newMsg._id)) return prev;
+          return [...prev, newMsg];
+        });
+      }
     };
 
     const handleMessagesMarkedRead = (data: any) => {
@@ -153,14 +235,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       newSocket.emit("leave-room", { roomId: chat._id });
       newSocket.disconnect();
     };
-  }, [chat._id, user?._id, queryClient]);
-
-  // Scroll to bottom on new messages and initial load
-  useEffect(() => {
-    if (messagesData || realtimeMessages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-    }
-  }, [realtimeMessages, messagesData]);
+  }, [chat._id, user?._id, queryClient, messagesData]);
 
   // Infinite scroll for loading old messages (scroll up)
   useEffect(() => {
@@ -169,19 +244,29 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
           const container = messagesContainerRef.current;
           const oldScrollHeight = container?.scrollHeight || 0;
+          const oldScrollTop = container?.scrollTop || 0;
+
+          // Mark that we're fetching older messages to prevent scroll to bottom
+          isFetchingOlderMessagesRef.current = true;
 
           fetchNextPage().then(() => {
             // Maintain scroll position after loading old messages
             setTimeout(() => {
               if (container) {
                 const newScrollHeight = container.scrollHeight;
-                container.scrollTop = newScrollHeight - oldScrollHeight;
+                const scrollDifference = newScrollHeight - oldScrollHeight;
+                // Maintain scroll position relative to the top
+                container.scrollTop = oldScrollTop + scrollDifference;
               }
+              // Reset the flag after a short delay
+              setTimeout(() => {
+                isFetchingOlderMessagesRef.current = false;
+              }, 100);
             }, 0);
           });
         }
       },
-      { threshold: 0.8 }
+      { threshold: 0.1 }
     );
 
     const currentTarget = loadMoreObserverRef.current;
@@ -196,14 +281,51 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     };
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  // Get all fetched messages and reverse them (oldest first, newest last)
   const fetchedMessages =
     messagesData?.pages.flatMap((page) => page.data.messages).reverse() || [];
-  const fetchedMessageIds = new Set(fetchedMessages.map((m) => m._id));
 
-  const allMessages = [
-    ...fetchedMessages,
-    ...realtimeMessages.filter((msg) => !fetchedMessageIds.has(msg._id)),
-  ];
+  // Create a map to deduplicate messages by _id
+  const messageMap = new Map<string, Message>();
+
+  // Add fetched messages first (they take priority)
+  fetchedMessages.forEach((msg) => {
+    if (msg._id) {
+      messageMap.set(msg._id, msg);
+    }
+  });
+
+  // Add realtime messages that aren't already in fetched messages
+  realtimeMessages.forEach((msg) => {
+    if (msg._id && !messageMap.has(msg._id)) {
+      messageMap.set(msg._id, msg);
+    }
+  });
+
+  // Convert map to array and sort by createdAt (oldest first)
+  const allMessages = Array.from(messageMap.values()).sort((a, b) => {
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+
+  // Scroll to bottom on new messages and initial load (but NOT when loading older messages)
+  useEffect(() => {
+    const currentMessageCount = allMessages.length;
+    const isNewMessageAtBottom =
+      realtimeMessages.length > 0 ||
+      (currentMessageCount > previousMessageCountRef.current &&
+        !isFetchingOlderMessagesRef.current);
+
+    // Only scroll to bottom if:
+    // 1. Initial load
+    // 2. New realtime messages arrived
+    // 3. New messages were added at the bottom (not when loading older messages)
+    if (isInitialLoadRef.current || isNewMessageAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      isInitialLoadRef.current = false;
+    }
+
+    previousMessageCountRef.current = currentMessageCount;
+  }, [realtimeMessages, allMessages.length]);
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || !socket) return;
@@ -256,36 +378,23 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 bg-base-200"
       >
-        {/* Load More Observer */}
-        <div ref={loadMoreObserverRef} className="py-2 text-center">
-          {!hasNextPage && allMessages.length > 0 && (
-            <div className="text-xs text-base-content/40">No more messages</div>
-          )}
-        </div>
+        <>
+          {/* Load More Observer - placed at top for loading older messages */}
+          <div ref={loadMoreObserverRef} className="py-2 text-center">
+            {isFetchingNextPage && (
+              <Loader2Icon className="flex items-center justify-items-center" />
+            )}
+          </div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-base-content/60">Loading messages...</div>
-          </div>
-        ) : allMessages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-base-content/60">
-              <p>No messages yet</p>
-              <p className="text-sm mt-2">Start the conversation!</p>
-            </div>
-          </div>
-        ) : (
-          <>
-            {allMessages.map((message, index) => (
-              <MessageBubble
-                key={message._id || index}
-                message={message}
-                isOwn={message.sender === user?._id}
-              />
-            ))}
-            <div ref={messagesEndRef} />
-          </>
-        )}
+          {allMessages.map((message) => (
+            <MessageBubble
+              key={message._id}
+              message={message}
+              isOwn={message.sender === user?._id}
+            />
+          ))}
+          <div ref={messagesEndRef} />
+        </>
       </div>
 
       {/* Message Input */}
