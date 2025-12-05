@@ -6,8 +6,8 @@ import {
   MessagesResponse,
 } from "@/interfaces/allInterface";
 import { getRoomMessageWithItsUnreadCount } from "@/lib/apis/chat.api";
-import { getImage } from "@/lib/utils";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { formatMessageTime, getImage } from "@/lib/utils";
+import { InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
@@ -69,7 +69,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       // ✅ Immediately update cache when joining room - reset unread count
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
+        (oldData: InfiniteData<ChatsResponse> | undefined): InfiniteData<ChatsResponse> | undefined => {
           if (!oldData) return oldData;
 
           return {
@@ -106,7 +106,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       // ✅ Update the chat list cache with new message
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
+        (oldData: InfiniteData<ChatsResponse> | undefined): InfiniteData<ChatsResponse> | undefined => {
           if (!oldData) return oldData;
 
           return {
@@ -147,7 +147,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         if (prev.some((m) => m._id === newMsg._id)) return prev;
 
         // Also check if this message is already in fetched messages
-        const messagesData = queryClient.getQueryData<MessagesResponse>([
+        const messagesData = queryClient.getQueryData<InfiniteData<MessagesResponse>>([
           "messages",
           chat._id,
         ]);
@@ -176,7 +176,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       // ✅ Update cache for the specific room
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
+        (oldData: InfiniteData<ChatsResponse> | undefined): InfiniteData<ChatsResponse> | undefined => {
           if (!oldData) return oldData;
 
           return {
@@ -308,7 +308,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     // Update chat list cache optimistically
     queryClient.setQueryData(
       ["chats", user?._id],
-      (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
+      (oldData: InfiniteData<ChatsResponse> | undefined): InfiniteData<ChatsResponse>  | undefined => {
         if (!oldData) return oldData;
 
         return {
@@ -395,11 +395,17 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         ) : (
           <>
             {allMessages.map((message, index) => (
-              <MessageBubble
+             <> <MessageBubble
                 key={message._id || index}
                 message={message}
                 isOwn={message.sender === user?._id}
               />
+              {Number(index) == 0 && message.sender == user?._id && message.isRead && (
+                <div className="text-xs text-base-content/60">
+                  {chat.members.fullName} read the message at {formatMessageTime(message.updatedAt)}
+                </div>
+              )}
+              </>
             ))}
             <div ref={messagesEndRef} />
           </>

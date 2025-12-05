@@ -4,7 +4,11 @@ import { ChatRoomCard } from "@/components/Chat/ChatRoomCard";
 import { ChatWindow } from "@/components/Chat/ChatWindow";
 import { ChatRoom, ChatsResponse, Message } from "@/interfaces/allInterface";
 import { getAllChats } from "@/lib/apis/chat.api";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  InfiniteData,
+  useInfiniteQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
@@ -14,6 +18,7 @@ export default function ChatsPage() {
   const [selectedChat, setSelectedChat] = useState<ChatRoom | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
   const globalSocketRef = useRef<Socket | null>(null);
+  const selectedChatRef = useRef<ChatRoom | null>(null);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useInfiniteQuery({
@@ -65,7 +70,9 @@ export default function ChatsPage() {
       // Update cache for chats list
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
+        (
+          oldData: InfiniteData<ChatsResponse> | undefined
+        ): InfiniteData<ChatsResponse> | undefined => {
           if (!oldData) return oldData;
 
           return {
@@ -93,7 +100,8 @@ export default function ChatsPage() {
                     // - Don't increment if message is already read (user is viewing the chat)
                     // - Increment if message is not from current user and not read
                     const isFromCurrentUser = newMsg.sender === user?._id;
-                    const isCurrentlyViewing = selectedChat?._id === data.roomId;
+                    // Use ref to get latest selectedChat without causing re-renders
+                    const isCurrentlyViewing = selectedChatRef.current?._id === data.roomId;
                     const newUnreadCount =
                       !isFromCurrentUser && !newMsg.isRead && !isCurrentlyViewing
                         ? (c.unreadCount || 0) + 1
@@ -118,12 +126,14 @@ export default function ChatsPage() {
     const handleMessagesMarkedRead = (data: any) => {
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
+        (
+          oldData: InfiniteData<ChatsResponse> | undefined
+        ): InfiniteData<ChatsResponse> | undefined => {
           if (!oldData) return oldData;
 
           return {
             ...oldData,
-            pages: oldData.pages.map((page: ChatsResponse["data"]) => ({
+            pages: oldData.pages.map((page) => ({
               ...page,
               data: {
                 ...page.data,
@@ -148,7 +158,12 @@ export default function ChatsPage() {
       socket.disconnect();
       globalSocketRef.current = null;
     };
-  }, [user?._id, queryClient, selectedChat?._id]);
+  }, [user?._id, queryClient]);
+
+  // Keep selectedChatRef in sync with selectedChat state
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+  }, [selectedChat]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -208,12 +223,12 @@ export default function ChatsPage() {
                   isSelected={selectedChat?._id === chat._id}
                   onClick={() => {
                     // Update selected chat and ensure it's the latest from cache
-                    const cachedChats = queryClient.getQueryData<ChatsResponse>(
-                      ["chats", user?._id]
-                    );
+                    const cachedChats = queryClient.getQueryData<
+                      InfiniteData<ChatsResponse>
+                    >(["chats", user?._id]);
                     const latestChat = cachedChats?.pages
                       .flatMap((page) => page.data.chats)
-                      .find((c) => c._id === chat._id);
+                      .find((c: ChatRoom) => c._id === chat._id);
                     setSelectedChat(latestChat || chat);
                   }}
                 />
