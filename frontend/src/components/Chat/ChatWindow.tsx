@@ -60,12 +60,18 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       typingTimeoutRef.current = null;
     }
 
-    // ✅ Check chat list cache for any messages that might not be in messages cache yet
-    // This handles the case where a message was received while viewing another room
+    // ✅ Check messages cache and chat list cache for any messages that might need to be synced
+    // This handles the case where a message was received/sent while viewing another room
+    const messagesCache = queryClient.getQueryData<InfiniteData<MessagesResponse>>([
+      "messages",
+      chat._id,
+    ]);
+    
     const chatsCache = queryClient.getQueryData<InfiniteData<ChatsResponse>>([
       "chats",
       user?._id,
     ]);
+    
     if (chatsCache) {
       const chatFromList = chatsCache.pages
         .flatMap((page) => page.data.chats)
@@ -75,18 +81,34 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         const lastMessage = chatFromList.messages[0];
         
         // Check if this message is already in the messages cache
-        const messagesCache = queryClient.getQueryData<InfiniteData<MessagesResponse>>([
-          "messages",
-          chat._id,
-        ]);
         const messageInCache = messagesCache?.pages.some((page) =>
           page.data.messages.some((m) => m._id === lastMessage._id)
         );
 
-        // If message is not in messages cache, add it to realtimeMessages temporarily
-        // It will be properly added to cache when the global socket handler runs
-        if (!messageInCache && lastMessage) {
-          setRealtimeMessages([lastMessage]);
+        // If message is not in messages cache but cache exists, add it to cache
+        if (!messageInCache && messagesCache && lastMessage) {
+          queryClient.setQueryData(
+            ["messages", chat._id],
+            (oldData: InfiniteData<MessagesResponse> | undefined): InfiniteData<MessagesResponse> | undefined => {
+              if (!oldData) return oldData;
+              
+              return {
+                ...oldData,
+                pages: oldData.pages.map((page, pageIndex) => {
+                  if (pageIndex === 0) {
+                    return {
+                      ...page,
+                      data: {
+                        ...page.data,
+                        messages: [lastMessage, ...page.data.messages],
+                      },
+                    };
+                  }
+                  return page;
+                }),
+              };
+            }
+          );
         }
       }
     }
@@ -176,6 +198,43 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
                 }),
               },
             })),
+          };
+        }
+      );
+
+      // ✅ Update the messages cache for this room so messages persist when switching rooms
+      queryClient.setQueryData(
+        ["messages", chat._id],
+        (
+          oldData: InfiniteData<MessagesResponse> | undefined
+        ): InfiniteData<MessagesResponse> | undefined => {
+          // If cache doesn't exist yet, don't create it (let it be fetched when room is opened)
+          if (!oldData) return oldData;
+
+          // Check if message already exists in any page
+          const messageExists = oldData.pages.some((page) =>
+            page.data.messages.some((m) => m._id === newMsg._id)
+          );
+
+          if (messageExists) return oldData;
+
+          // Add message to the first page (most recent messages)
+          // Since messages are sorted newest first in the API, add to the beginning of the first page
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page, pageIndex) => {
+              if (pageIndex === 0) {
+                // Add to first page (most recent messages)
+                return {
+                  ...page,
+                  data: {
+                    ...page.data,
+                    messages: [newMsg, ...page.data.messages],
+                  },
+                };
+              }
+              return page;
+            }),
           };
         }
       );

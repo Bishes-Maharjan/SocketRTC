@@ -9,13 +9,17 @@ import {
   useInfiniteQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import React from "react";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
-export default function ChatsPage() {
+export default function ChatsPage({ searchParams }: { searchParams: Promise<{ chatId: string }> }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [selectedChat, setSelectedChat] = useState<ChatRoom | null>(null);
+  const { chatId } = React.use(searchParams);
   const [typingRooms, setTypingRooms] = useState<Set<string>>(new Set());
   const typingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -36,6 +40,8 @@ export default function ChatsPage() {
       enabled: !!user?._id,
       initialPageParam: 1,
     });
+
+  const allChats = data?.pages.flatMap((page) => page.data.chats) || [];
 
   // Global socket connection to listen to messages for chat list updates
   // This socket connects to user's personal room (automatically joined on connection)
@@ -252,6 +258,19 @@ export default function ChatsPage() {
     selectedChatRef.current = selectedChat;
   }, [selectedChat]);
 
+  // Initialize and update selectedChat from URL chatId when chats are loaded or chatId changes
+  useEffect(() => {
+    if (chatId && allChats.length > 0) {
+      const chatFromUrl = allChats.find((c: ChatRoom) => c._id === chatId);
+      if (chatFromUrl && selectedChat?._id !== chatId) {
+        setSelectedChat(chatFromUrl);
+      }
+    } else if (!chatId && selectedChat) {
+      // Clear selection if chatId is removed from URL
+      setSelectedChat(null);
+    }
+  }, [chatId, allChats, selectedChat]);
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -277,7 +296,6 @@ export default function ChatsPage() {
     };
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const allChats = data?.pages.flatMap((page) => page.data.chats) || [];
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-base-200">
       {/* Left Sidebar - Chat List */}
@@ -307,7 +325,7 @@ export default function ChatsPage() {
                   key={chat._id}
                   chat={chat}
                   us={user?._id || ""}
-                  isSelected={selectedChat?._id === chat._id}
+                  isSelected={selectedChat?._id === chat._id || chatId === chat._id}
                   isTyping={typingRooms.has(chat._id)}
                   onClick={() => {
                     // Update selected chat and ensure it's the latest from cache
@@ -318,6 +336,8 @@ export default function ChatsPage() {
                       .flatMap((page) => page.data.chats)
                       .find((c: ChatRoom) => c._id === chat._id);
                     setSelectedChat(latestChat || chat);
+                    // Update URL with chatId
+                    router.push(`/chat?chatId=${chat._id}`);
                   }}
                 />
               ))}

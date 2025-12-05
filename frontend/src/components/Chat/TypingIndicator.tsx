@@ -1,5 +1,5 @@
 export function TypingIndicator({
-  label,
+
   containerClassName = "",
   dotClassName = "",
 }: {

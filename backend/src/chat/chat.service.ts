@@ -79,21 +79,12 @@ export class ChatService {
     };
   }
 
-  async getChatById(
-    roomId: string,
-    us: string,
-  ): Promise<{
-    chat: unknown;
-  }> {
-    const chat = await this.chatModel
-      .findById(roomId)
+  async getChatById(partnerId: string, userId: string): Promise<ChatDocument> {
+    const chat = (await this.chatModel
+      .findOne({ members: { $all: [partnerId, userId] } })
       .populate('members')
-      .lean();
+      .lean()) as ChatDocument;
     if (!chat) throw new NotFoundException('Room Id doesnt exist');
-    const result = {
-      ...chat,
-      members: chat.members.find((member) => member != us),
-    };
-    return { chat: result };
+    return chat;
   }
 }
