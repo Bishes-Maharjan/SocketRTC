@@ -1,19 +1,14 @@
 import { useAuth } from "@/auth/AuthProvider";
-import {
-  ChatRoom,
-  ChatsResponse,
-  Message,
-  MessagesResponse,
-} from "@/interfaces/allInterface";
+import { ChatRoom, Message } from "@/interfaces/allInterface";
 import { getRoomMessageWithItsUnreadCount } from "@/lib/apis/chat.api";
 import { formatMessageTime, getImage } from "@/lib/utils";
-import { InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useChatStore } from "@/stores/useChatStore";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
-import { LoaderIcon, LoaderPinwheel } from "lucide-react";
+import { LoaderIcon } from "lucide-react";
 
 export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const { user } = useAuth();
@@ -22,101 +17,73 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreObserverRef = useRef<HTMLDivElement>(null);
-  const [realtimeMessages, setRealtimeMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const queryClient = useQueryClient();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  // Zustand store
   const {
-    data: messagesData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-  } = useInfiniteQuery({
-    queryKey: ["messages", chat._id],
-    queryFn: ({ pageParam = 1 }) =>
-      getRoomMessageWithItsUnreadCount(chat._id, {
-        limit: 8,
-        page: pageParam,
-      }),
-    getNextPageParam: (lastPage: MessagesResponse, allPages) => {
-      if (lastPage.data.hasMore) {
-        return allPages.length + 1;
-      }
-      return undefined;
-    },
-    enabled: !!chat._id,
-    initialPageParam: 1,
-  });
+    getMessages,
+    addMessage,
+    addMessages,
+    prependMessages,
+    markMessagesAsRead,
+    updateChatLastMessage,
+    updateChatUnreadCount,
+    setTyping,
+    clearTyping,
+    isTyping: checkIsTyping,
+    loadingMessages,
+    setLoadingMessages,
+  } = useChatStore();
 
-  // Reset realtime messages when chat changes
+  const messages = getMessages(chat._id);
+  const isLoading = loadingMessages[chat._id] ?? false;
+  
+  // Reactive typing indicator
+  const typingUsers = useChatStore((state) => state.typingUsers);
+  const typingSet = typingUsers[chat._id];
+  const isTyping = typingSet && typingSet.size > 0
+    ? Array.from(typingSet).some((userId) => userId !== user?._id)
+    : false;
+
+  // Load initial messages when chat changes
   useEffect(() => {
-    setRealtimeMessages([]);
+    if (!chat._id) return;
+
+    setLoadingMessages(chat._id, true);
     setNewMessage("");
-    setIsTyping(false);
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
+    setCurrentPage(1);
+    setHasMore(true);
+
+    // Check if we already have messages for this room
+    const existingMessages = getMessages(chat._id);
+    if (existingMessages.length > 0) {
+      setLoadingMessages(chat._id, false);
+      return;
     }
 
-    // ✅ Check messages cache and chat list cache for any messages that might need to be synced
-    // This handles the case where a message was received/sent while viewing another room
-    const messagesCache = queryClient.getQueryData<InfiniteData<MessagesResponse>>([
-      "messages",
-      chat._id,
-    ]);
-    
-    const chatsCache = queryClient.getQueryData<InfiniteData<ChatsResponse>>([
-      "chats",
-      user?._id,
-    ]);
-    
-    if (chatsCache) {
-      const chatFromList = chatsCache.pages
-        .flatMap((page) => page.data.chats)
-        .find((c: ChatRoom) => c._id === chat._id);
-
-      if (chatFromList?.messages && chatFromList.messages.length > 0) {
-        const lastMessage = chatFromList.messages[0];
+    // Load first page of messages
+    getRoomMessageWithItsUnreadCount(chat._id, { limit: 20, page: 1 })
+      .then((response) => {
+        const { messages: fetchedMessages, hasMore: more, unreadCount } = response.data;
         
-        // Check if this message is already in the messages cache
-        const messageInCache = messagesCache?.pages.some((page) =>
-          page.data.messages.some((m) => m._id === lastMessage._id)
-        );
-
-        // If message is not in messages cache but cache exists, add it to cache
-        if (!messageInCache && messagesCache && lastMessage) {
-          queryClient.setQueryData(
-            ["messages", chat._id],
-            (oldData: InfiniteData<MessagesResponse> | undefined): InfiniteData<MessagesResponse> | undefined => {
-              if (!oldData) return oldData;
-              
-              return {
-                ...oldData,
-                pages: oldData.pages.map((page, pageIndex) => {
-                  if (pageIndex === 0) {
-                    return {
-                      ...page,
-                      data: {
-                        ...page.data,
-                        messages: [lastMessage, ...page.data.messages],
-                      },
-                    };
-                  }
-                  return page;
-                }),
-              };
-            }
-          );
-        }
-      }
-    }
-  }, [chat._id, user?._id, queryClient]);
+        // Messages come sorted newest first from API, but we want oldest first for display
+        const sortedMessages = [...fetchedMessages].reverse();
+        
+        addMessages(chat._id, sortedMessages, 1, more);
+        setHasMore(more);
+        updateChatUnreadCount(chat._id, unreadCount);
+        setLoadingMessages(chat._id, false);
+      })
+      .catch((error) => {
+        console.error("Failed to load messages:", error);
+        setLoadingMessages(chat._id, false);
+      });
+  }, [chat._id, addMessages, updateChatUnreadCount, setLoadingMessages, getMessages]);
 
   // Socket connection
-  // In ChatWindow.tsx, update the socket connection effect:
-
   useEffect(() => {
     const newSocket = io("http://localhost:3001", {
       withCredentials: true,
@@ -128,26 +95,8 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       // Join active room (server will mark messages as read on join)
       newSocket.emit("join-room", { roomId: chat._id });
 
-      // ✅ Immediately update cache when joining room - reset unread count
-      queryClient.setQueryData(
-        ["chats", user?._id],
-        (oldData: InfiniteData<ChatsResponse> | undefined): InfiniteData<ChatsResponse> | undefined => {
-          if (!oldData) return oldData;
-
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page) => ({
-              ...page,
-              data: {
-                ...page.data,
-                chats: page.data.chats.map((c: ChatRoom) =>
-                  c._id === chat._id ? { ...c, unreadCount: 0 } : c
-                ),
-              },
-            })),
-          };
-        }
-      );
+      // Reset unread count when joining room
+      updateChatUnreadCount(chat._id, 0);
     });
 
     const handleReceiveMessage = (data: any) => {
@@ -165,212 +114,37 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         updatedAt: data.updatedAt,
       };
 
-      // ✅ Update the chat list cache with new message
-      queryClient.setQueryData(
-        ["chats", user?._id],
-        (oldData: InfiniteData<ChatsResponse> | undefined): InfiniteData<ChatsResponse> | undefined => {
-          if (!oldData) return oldData;
-
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page) => ({
-              ...page,
-              data: {
-                ...page.data,
-                chats: page.data.chats.map((c: ChatRoom) => {
-                  if (c._id === chat._id) {
-                    const existingMessages = c.messages || [];
-                    // Check if message already exists (avoid duplicates)
-                    const messageExists = existingMessages.some(
-                      (m) => m._id === newMsg._id
-                    );
-                    if (messageExists) return c;
-
-                    // Update with new message (keep only most recent for list view)
-                    // Since user is viewing this chat, mark as read
-                    return {
-                      ...c,
-                      messages: [newMsg], // Only keep the most recent message for the list
-                      unreadCount: 0, // Keep at 0 since we're in active chat
-                    };
-                  }
-                  return c;
-                }),
-              },
-            })),
-          };
-        }
-      );
-
-      // ✅ Update the messages cache for this room so messages persist when switching rooms
-      queryClient.setQueryData(
-        ["messages", chat._id],
-        (
-          oldData: InfiniteData<MessagesResponse> | undefined
-        ): InfiniteData<MessagesResponse> | undefined => {
-          // If cache doesn't exist yet, don't create it (let it be fetched when room is opened)
-          if (!oldData) return oldData;
-
-          // Check if message already exists in any page
-          const messageExists = oldData.pages.some((page) =>
-            page.data.messages.some((m) => m._id === newMsg._id)
-          );
-
-          if (messageExists) return oldData;
-
-          // Add message to the first page (most recent messages)
-          // Since messages are sorted newest first in the API, add to the beginning of the first page
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page, pageIndex) => {
-              if (pageIndex === 0) {
-                // Add to first page (most recent messages)
-                return {
-                  ...page,
-                  data: {
-                    ...page.data,
-                    messages: [newMsg, ...page.data.messages],
-                  },
-                };
-              }
-              return page;
-            }),
-          };
-        }
-      );
-
-      // Add to realtime messages for this chat window
-      // Check against both fetched messages and existing realtime messages to avoid duplicates
-      setRealtimeMessages((prev) => {
-        // Avoid duplicates by ID
-        if (prev.some((m) => m._id === newMsg._id)) return prev;
-
-        // Also check if this message is already in fetched messages
-        const messagesData = queryClient.getQueryData<InfiniteData<MessagesResponse>>([
-          "messages",
-          chat._id,
-        ]);
-        const fetchedMessageIds = new Set(
-          messagesData?.pages
-            .flatMap((page) => page.data.messages)
-            .map((m) => m._id) || []
-        );
-        if (fetchedMessageIds.has(newMsg._id)) return prev;
-
-        // Remove any optimistic temp message that matches sender and text
-        const filteredPrev = prev.filter(
-          (m) =>
-            !m._id.startsWith("temp-") ||
-            m.sender !== newMsg.sender ||
-            m.message !== newMsg.message
-        );
-
-        return [...filteredPrev, newMsg];
-      });
+      // Add message to store
+      addMessage(chat._id, newMsg);
+      
+      // Update chat last message
+      updateChatLastMessage(chat._id, newMsg);
+      
+      // If user is viewing this chat, mark as read and reset unread count
+      updateChatUnreadCount(chat._id, 0);
     };
 
     const handleMessagesMarkedRead = (data: any) => {
-      console.log("🟢 Messages marked as read:", data);
-
-      // ✅ Update cache for the specific room
-      queryClient.setQueryData(
-        ["chats", user?._id],
-        (oldData: InfiniteData<ChatsResponse> | undefined): InfiniteData<ChatsResponse> | undefined => {
-          if (!oldData) return oldData;
-
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page) => ({
-              ...page,
-              data: {
-                ...page.data,
-                chats: page.data.chats.map((c: ChatRoom) =>
-                  c._id === data.roomId && data.userId !== user?._id
-                    ? { ...c, unreadCount: 0 }
-                    : c
-                ),
-              },
-            })),
-          };
-        }
-      );
-
-      // ✅ Also update the messages cache to mark messages as read
-      // This is important when joining a room - all messages should be marked as read
       if (data.roomId === chat._id) {
-        // When current user joins, mark all messages as read (backend already marked them)
-        // When another user reads, mark messages sent by current user as read
-        const isCurrentUserJoining = data.userId === user?._id;
-
-        queryClient.setQueryData(
-          ["messages", chat._id],
-          (oldData: InfiniteData<MessagesResponse> | undefined): InfiniteData<MessagesResponse> | undefined => {
-            if (!oldData) return oldData;
-
-            return {
-              ...oldData,
-              pages: oldData.pages.map((page) => ({
-                ...page,
-                data: {
-                  ...page.data,
-                  messages: page.data.messages.map((msg: Message) => {
-                    if (isCurrentUserJoining) {
-                      // Current user joined - mark all messages as read
-                      return { ...msg, isRead: true };
-                    } else {
-                      // Another user read - mark messages sent by current user as read
-                      return {
-                        ...msg,
-                        isRead: msg.sender === user?._id ? true : msg.isRead,
-                      };
-                    }
-                  }),
-                },
-              })),
-            };
-          }
-        );
-
-        // ✅ Also update realtimeMessages to mark them as read
-        setRealtimeMessages((prev) =>
-          prev.map((msg) => {
-            if (isCurrentUserJoining) {
-              // Current user joined - mark all messages as read
-              return { ...msg, isRead: true };
-            } else {
-              // Another user read - mark messages sent by current user as read
-              return {
-                ...msg,
-                isRead: msg.sender === user?._id ? true : msg.isRead,
-              };
-            }
-          })
-        );
+        // Mark all messages as read in store
+        markMessagesAsRead(chat._id, data.userId);
+        
+        // Update unread count
+        if (data.userId === user?._id) {
+          updateChatUnreadCount(chat._id, 0);
+        }
       }
     };
 
     const handleUserTyping = (data: any) => {
-      // Only show typing indicator if it's not from current user
       if (data.userId !== user?._id && data.roomId === chat._id) {
-        setIsTyping(true);
-        // Clear existing timeout
-        if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
-        }
-        // Auto-clear typing indicator after 3 seconds
-        typingTimeoutRef.current = setTimeout(() => {
-          setIsTyping(false);
-        }, 3000);
+        setTyping(chat._id, data.userId, true);
       }
     };
 
     const handleUserStoppedTyping = (data: any) => {
       if (data.userId !== user?._id && data.roomId === chat._id) {
-        setIsTyping(false);
-        if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
-          typingTimeoutRef.current = null;
-        }
+        clearTyping(chat._id, data.userId);
       }
     };
 
@@ -392,24 +166,57 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [chat._id, user?._id, queryClient]);
+      }, [chat._id, user?._id, updateChatLastMessage, updateChatUnreadCount, markMessagesAsRead, setTyping, clearTyping, addMessage]);
 
-  // Scroll to bottom on new messages and initial load
+  // Scroll to bottom on new messages
   useEffect(() => {
-    if (messagesData || realtimeMessages.length > 0) {
+    if (messages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
     }
-  }, [realtimeMessages, messagesData]);
+  }, [messages.length]);
+
+  // Load more messages (pagination)
+  const loadMoreMessages = async () => {
+    if (!hasMore || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    const nextPage = currentPage + 1;
+
+    try {
+      const response = await getRoomMessageWithItsUnreadCount(chat._id, {
+        limit: 20,
+        page: nextPage,
+      });
+
+      const { messages: fetchedMessages, hasMore: more } = response.data;
+      
+      if (fetchedMessages.length > 0) {
+        // Messages come sorted newest first, reverse for display
+        const sortedMessages = [...fetchedMessages].reverse();
+        
+        // Prepend older messages
+        prependMessages(chat._id, sortedMessages, more);
+        setCurrentPage(nextPage);
+        setHasMore(more);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Failed to load more messages:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   // Infinite scroll for loading old messages (scroll up)
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
           const container = messagesContainerRef.current;
           const oldScrollHeight = container?.scrollHeight || 0;
 
-          fetchNextPage().then(() => {
+          loadMoreMessages().then(() => {
             // Maintain scroll position after loading old messages
             setTimeout(() => {
               if (container) {
@@ -433,42 +240,12 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         observer.unobserve(currentTarget);
       }
     };
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-  const fetchedMessages =
-    messagesData?.pages.flatMap((page) => page.data.messages).reverse() || [];
-  const fetchedMessageIds = new Set(fetchedMessages.map((m) => m._id));
-
-  // Combine fetched and realtime messages, ensuring no duplicates
-  // Use a Map to deduplicate by message ID, keeping the most recent version
-  const messageMap = new Map<string, Message>();
-
-  // Add fetched messages first
-  fetchedMessages.forEach((msg) => {
-    messageMap.set(msg._id, msg);
-  });
-
-  // Add realtime messages, dropping optimistic temp messages if real arrived
-  realtimeMessages.forEach((msg) => {
-    if (msg._id.startsWith("temp-")) {
-      // If a real message with same sender+text exists, skip temp
-      const realExists = Array.from(messageMap.values()).some(
-        (m) => m.sender === msg.sender && m.message === msg.message
-      );
-      if (realExists) return;
-    }
-    messageMap.set(msg._id, msg);
-  });
-
-  // Convert back to array and sort by createdAt
-  const allMessages = Array.from(messageMap.values()).sort((a, b) => {
-    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-  });
+  }, [hasMore, isLoadingMore]);
 
   // Find the most recent message sent by the current user that has been read
-  const mostRecentReadMessage = allMessages
+  const mostRecentReadMessage = messages
     .filter((msg) => msg.sender === user?._id && msg.isRead)
-    .pop(); // Get the last one (most recent) since array is sorted ascending
+    .pop();
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || !socket) return;
@@ -478,49 +255,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       roomId: chat._id,
       message: messageText,
     });
-
-    // Optimistically add sent message to realtime messages
-    const optimisticMessage: Message = {
-      _id: `temp-${Date.now()}`,
-      sender: user?._id || "",
-      to: chat.members._id,
-      roomId: chat._id,
-      message: messageText,
-      isRead: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    setRealtimeMessages((prev) => [...prev, optimisticMessage]);
     setNewMessage("");
-
-    // Update chat list cache optimistically
-    queryClient.setQueryData(
-      ["chats", user?._id],
-      (oldData: InfiniteData<ChatsResponse> | undefined): InfiniteData<ChatsResponse>  | undefined => {
-        if (!oldData) return oldData;
-
-        return {
-          ...oldData,
-          pages: oldData.pages.map((page) => ({
-            ...page,
-            data: {
-              ...page.data,
-              chats: page.data.chats.map((c: ChatRoom) => {
-                if (c._id === chat._id) {
-                  return {
-                    ...c,
-                    messages: [optimisticMessage],
-                    unreadCount: 0,
-                  };
-                }
-                return c;
-              }),
-            },
-          })),
-        };
-      }
-    );
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -602,16 +337,19 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       >
         {/* Load More Observer */}
         <div ref={loadMoreObserverRef} className="py-2 text-center">
-          {!hasNextPage && allMessages.length > 0 && (
+          {isLoadingMore && (
+            <div className="text-xs text-base-content/60">Loading more...</div>
+          )}
+          {!hasMore && messages.length > 0 && (
             <div className="text-xs text-base-content/40">No more messages</div>
           )}
         </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-           <LoaderIcon className="animate-spin size-10 text-primary" />
+            <LoaderIcon className="animate-spin size-10 text-primary" />
           </div>
-        ) : allMessages.length === 0 ? (
+        ) : messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-base-content/60">
               <p>No messages yet</p>
@@ -620,7 +358,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
           </div>
         ) : (
           <>
-            {allMessages.map((message, index) => (
+            {messages.map((message, index) => (
               <div key={message._id || index}>
                 <MessageBubble
                   message={message}
@@ -628,7 +366,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
                 />
                 {mostRecentReadMessage && message._id === mostRecentReadMessage._id && (
                   <div className={`text-xs text-base-content/60 ${message.sender === user?._id ? "text-end" : "text-start"}`}>
-                    seen, {formatMessageTime(message.updatedAt)}
+                    seen, {formatMessageTime(message.updatedAt || message.createdAt)}
                   </div>
                 )}
               </div>

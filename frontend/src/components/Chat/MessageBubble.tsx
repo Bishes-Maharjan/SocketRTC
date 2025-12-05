@@ -8,6 +8,7 @@ export function MessageBubble({
   message: Message;
   isOwn: boolean;
 }) {
+  console.log(message);
   return (
     <div className={`flex mb-4 ${isOwn ? "justify-end" : "justify-start"}`}>
       <div

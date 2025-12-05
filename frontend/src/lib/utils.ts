@@ -2,16 +2,16 @@ import { format, isToday, isYesterday } from "date-fns";
 
 export function formatMessageTime(dateString: string): string {
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "";
 
   if (isToday(date)) {
-    return `${format(date, "hh:mm a")}`;
+    return format(date, "hh:mm a");
   }
 
   if (isYesterday(date)) {
     return `Yesterday, ${format(date, "hh:mm a")}`;
   }
 
-  // Older than yesterday
   return format(date, "do MMM");
 }
 
