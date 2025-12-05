@@ -59,7 +59,38 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
-  }, [chat._id]);
+
+    // ✅ Check chat list cache for any messages that might not be in messages cache yet
+    // This handles the case where a message was received while viewing another room
+    const chatsCache = queryClient.getQueryData<InfiniteData<ChatsResponse>>([
+      "chats",
+      user?._id,
+    ]);
+    if (chatsCache) {
+      const chatFromList = chatsCache.pages
+        .flatMap((page) => page.data.chats)
+        .find((c: ChatRoom) => c._id === chat._id);
+
+      if (chatFromList?.messages && chatFromList.messages.length > 0) {
+        const lastMessage = chatFromList.messages[0];
+        
+        // Check if this message is already in the messages cache
+        const messagesCache = queryClient.getQueryData<InfiniteData<MessagesResponse>>([
+          "messages",
+          chat._id,
+        ]);
+        const messageInCache = messagesCache?.pages.some((page) =>
+          page.data.messages.some((m) => m._id === lastMessage._id)
+        );
+
+        // If message is not in messages cache, add it to realtimeMessages temporarily
+        // It will be properly added to cache when the global socket handler runs
+        if (!messageInCache && lastMessage) {
+          setRealtimeMessages([lastMessage]);
+        }
+      }
+    }
+  }, [chat._id, user?._id, queryClient]);
 
   // Socket connection
   // In ChatWindow.tsx, update the socket connection effect:
@@ -204,6 +235,59 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
           };
         }
       );
+
+      // ✅ Also update the messages cache to mark messages as read
+      // This is important when joining a room - all messages should be marked as read
+      if (data.roomId === chat._id) {
+        // When current user joins, mark all messages as read (backend already marked them)
+        // When another user reads, mark messages sent by current user as read
+        const isCurrentUserJoining = data.userId === user?._id;
+
+        queryClient.setQueryData(
+          ["messages", chat._id],
+          (oldData: InfiniteData<MessagesResponse> | undefined): InfiniteData<MessagesResponse> | undefined => {
+            if (!oldData) return oldData;
+
+            return {
+              ...oldData,
+              pages: oldData.pages.map((page) => ({
+                ...page,
+                data: {
+                  ...page.data,
+                  messages: page.data.messages.map((msg: Message) => {
+                    if (isCurrentUserJoining) {
+                      // Current user joined - mark all messages as read
+                      return { ...msg, isRead: true };
+                    } else {
+                      // Another user read - mark messages sent by current user as read
+                      return {
+                        ...msg,
+                        isRead: msg.sender === user?._id ? true : msg.isRead,
+                      };
+                    }
+                  }),
+                },
+              })),
+            };
+          }
+        );
+
+        // ✅ Also update realtimeMessages to mark them as read
+        setRealtimeMessages((prev) =>
+          prev.map((msg) => {
+            if (isCurrentUserJoining) {
+              // Current user joined - mark all messages as read
+              return { ...msg, isRead: true };
+            } else {
+              // Another user read - mark messages sent by current user as read
+              return {
+                ...msg,
+                isRead: msg.sender === user?._id ? true : msg.isRead,
+              };
+            }
+          })
+        );
+      }
     };
 
     const handleUserTyping = (data: any) => {

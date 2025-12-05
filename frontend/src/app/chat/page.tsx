@@ -2,7 +2,7 @@
 import { useAuth } from "@/auth/AuthProvider";
 import { ChatRoomCard } from "@/components/Chat/ChatRoomCard";
 import { ChatWindow } from "@/components/Chat/ChatWindow";
-import { ChatRoom, ChatsResponse, Message } from "@/interfaces/allInterface";
+import { ChatRoom, ChatsResponse, Message, MessagesResponse } from "@/interfaces/allInterface";
 import { getAllChats } from "@/lib/apis/chat.api";
 import {
   InfiniteData,
@@ -119,6 +119,43 @@ export default function ChatsPage() {
                 }),
               },
             })),
+          };
+        }
+      );
+
+      // ✅ Also update the messages cache for this room so messages are available when switching to it
+      queryClient.setQueryData(
+        ["messages", data.roomId],
+        (
+          oldData: InfiniteData<MessagesResponse> | undefined
+        ): InfiniteData<MessagesResponse> | undefined => {
+          // If cache doesn't exist yet, don't create it (let it be fetched when room is opened)
+          if (!oldData) return oldData;
+
+          // Check if message already exists in any page
+          const messageExists = oldData.pages.some((page) =>
+            page.data.messages.some((m) => m._id === newMsg._id)
+          );
+
+          if (messageExists) return oldData;
+
+          // Add message to the first page (most recent messages)
+          // Since messages are sorted newest first in the API, add to the beginning of the first page
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page, pageIndex) => {
+              if (pageIndex === 0) {
+                // Add to first page (most recent messages)
+                return {
+                  ...page,
+                  data: {
+                    ...page.data,
+                    messages: [newMsg, ...page.data.messages],
+                  },
+                };
+              }
+              return page;
+            }),
           };
         }
       );
