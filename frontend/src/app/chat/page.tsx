@@ -2,40 +2,59 @@
 import { useAuth } from "@/auth/AuthProvider";
 import { ChatRoomCard } from "@/components/Chat/ChatRoomCard";
 import { ChatWindow } from "@/components/Chat/ChatWindow";
-import { ChatRoom, ChatsResponse, Message, MessagesResponse } from "@/interfaces/allInterface";
+import { ChatRoom, Message } from "@/interfaces/allInterface";
 import { getAllChats } from "@/lib/apis/chat.api";
-import {
-  InfiniteData,
-  useInfiniteQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useChatStore } from "@/stores/useChatStore";
+import { useRouter } from "next/navigation";
+import React from "react";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
-export default function ChatsPage() {
+export default function ChatsPage({ searchParams }: { searchParams: Promise<{ chatId: string }> }) {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const router = useRouter();
   const [selectedChat, setSelectedChat] = useState<ChatRoom | null>(null);
-  const [typingRooms, setTypingRooms] = useState<Set<string>>(new Set());
-  const typingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const { chatId } = React.use(searchParams);
   const observerTarget = useRef<HTMLDivElement>(null);
   const globalSocketRef = useRef<Socket | null>(null);
   const selectedChatRef = useRef<ChatRoom | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useInfiniteQuery({
-      queryKey: ["chats", user?._id],
-      queryFn: ({ pageParam = 1 }) =>
-        getAllChats({ limit: 20, page: pageParam }),
-      getNextPageParam: (lastPage: ChatsResponse, allPages) => {
-        if (lastPage.data.hasMore) {
-          return allPages.length + 1;
-        }
-        return undefined;
-      },
-      enabled: !!user?._id,
-      initialPageParam: 1,
-    });
+  // Zustand store
+  const {
+    chats,
+    chatsHasMore,
+    loadingChats,
+    setChats,
+    addChats,
+    addMessage,
+    updateChatLastMessage,
+    updateChatUnreadCount,
+    updateChat,
+    setTyping,
+    clearTyping,
+    setLoadingChats,
+    getChat,
+  } = useChatStore();
+
+  // Load initial chats
+  useEffect(() => {
+    if (!user?._id) return;
+
+    setLoadingChats(true);
+    getAllChats({ limit: 20, page: 1 })
+      .then((response) => {
+        const { chats: fetchedChats, hasMore } = response.data;
+        setChats(fetchedChats, hasMore, 1);
+        setCurrentPage(1);
+        setLoadingChats(false);
+      })
+      .catch((error) => {
+        console.error("Failed to load chats:", error);
+        setLoadingChats(false);
+      });
+  }, [user?._id, setChats, setLoadingChats]);
 
   // Global socket connection to listen to messages for chat list updates
   // This socket connects to user's personal room (automatically joined on connection)
@@ -69,163 +88,50 @@ export default function ChatsPage() {
         updatedAt: data.updatedAt,
       };
 
-      // Update cache for chats list
-      queryClient.setQueryData(
-        ["chats", user?._id],
-        (
-          oldData: InfiniteData<ChatsResponse> | undefined
-        ): InfiniteData<ChatsResponse> | undefined => {
-          if (!oldData) return oldData;
+      // Add message to store only if not currently viewing this room
+      const isCurrentlyViewing = selectedChatRef.current?._id === data.roomId;
+      if (!isCurrentlyViewing) {
+        addMessage(data.roomId, newMsg);
+      }
 
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page) => ({
-              ...page,
-              data: {
-                ...page.data,
-                chats: page.data.chats.map((c: ChatRoom) => {
-                  if (c._id === data.roomId) {
-                    // Update the chat with new message
-                    const existingMessages = c.messages || [];
-                    // Check if message already exists (avoid duplicates)
-                    const messageExists = existingMessages.some(
-                      (m) => m._id === newMsg._id
-                    );
+      // Update chat last message
+      updateChatLastMessage(data.roomId, newMsg);
 
-                    if (messageExists) return c;
-
-                    // Add new message at the beginning (most recent)
-                    const updatedMessages = [newMsg, ...existingMessages];
-
-                    // Update unread count:
-                    // - Don't increment if message is from current user
-                    // - Don't increment if message is already read (user is viewing the chat)
-                    // - Increment if message is not from current user and not read
-                    const isFromCurrentUser = newMsg.sender === user?._id;
-                    // Use ref to get latest selectedChat without causing re-renders
-                    const isCurrentlyViewing = selectedChatRef.current?._id === data.roomId;
-                    const newUnreadCount =
-                      !isFromCurrentUser && !newMsg.isRead && !isCurrentlyViewing
-                        ? (c.unreadCount || 0) + 1
-                        : c.unreadCount || 0;
-
-                    return {
-                      ...c,
-                      messages: updatedMessages.slice(0, 1), // Keep only the most recent message
-                      unreadCount: newUnreadCount,
-                    };
-                  }
-                  return c;
-                }),
-              },
-            })),
-          };
-        }
-      );
-
-      // ✅ Also update the messages cache for this room so messages are available when switching to it
-      queryClient.setQueryData(
-        ["messages", data.roomId],
-        (
-          oldData: InfiniteData<MessagesResponse> | undefined
-        ): InfiniteData<MessagesResponse> | undefined => {
-          // If cache doesn't exist yet, don't create it (let it be fetched when room is opened)
-          if (!oldData) return oldData;
-
-          // Check if message already exists in any page
-          const messageExists = oldData.pages.some((page) =>
-            page.data.messages.some((m) => m._id === newMsg._id)
-          );
-
-          if (messageExists) return oldData;
-
-          // Add message to the first page (most recent messages)
-          // Since messages are sorted newest first in the API, add to the beginning of the first page
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page, pageIndex) => {
-              if (pageIndex === 0) {
-                // Add to first page (most recent messages)
-                return {
-                  ...page,
-                  data: {
-                    ...page.data,
-                    messages: [newMsg, ...page.data.messages],
-                  },
-                };
-              }
-              return page;
-            }),
-          };
-        }
-      );
+      // Update unread count:
+      // - Don't increment if message is from current user
+      // - Don't increment if message is already read (user is viewing the chat)
+      // - Increment if message is not from current user and not read
+      const isFromCurrentUser = newMsg.sender === user?._id;
+      const isCurrentlyViewingAfterAdd = selectedChatRef.current?._id === data.roomId;
+      
+      if (!isFromCurrentUser && !newMsg.isRead && !isCurrentlyViewingAfterAdd) {
+        // Get current unread count and increment
+        const chat = getChat(data.roomId);
+        const currentUnread = chat?.unreadCount || 0;
+        updateChatUnreadCount(data.roomId, currentUnread + 1);
+      } else if (isFromCurrentUser || isCurrentlyViewingAfterAdd) {
+        // Reset unread count if viewing or if it's our own message
+        updateChatUnreadCount(data.roomId, 0);
+      }
     };
 
     // Handle messages marked as read
     const handleMessagesMarkedRead = (data: any) => {
-      queryClient.setQueryData(
-        ["chats", user?._id],
-        (
-          oldData: InfiniteData<ChatsResponse> | undefined
-        ): InfiniteData<ChatsResponse> | undefined => {
-          if (!oldData) return oldData;
-
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page) => ({
-              ...page,
-              data: {
-                ...page.data,
-                chats: page.data.chats.map((c: ChatRoom) =>
-                  c._id === data.roomId && data.userId !== user?._id
-                    ? { ...c, unreadCount: 0 }
-                    : c
-                ),
-              },
-            })),
-          };
-        }
-      );
+      if (data.userId !== user?._id) {
+        // Another user read messages - reset unread count
+        updateChatUnreadCount(data.roomId, 0);
+      }
     };
 
     const handleUserTyping = (data: any) => {
-      // Only show typing if it's not from current user
       if (data.userId !== user?._id && data.roomId) {
-        setTypingRooms((prev) => new Set(prev).add(data.roomId));
-        
-        // Clear existing timeout for this room
-        const existingTimeout = typingTimeoutsRef.current.get(data.roomId);
-        if (existingTimeout) {
-          clearTimeout(existingTimeout);
-        }
-        
-        // Auto-clear typing indicator after 3 seconds
-        const timeout = setTimeout(() => {
-          setTypingRooms((prev) => {
-            const newSet = new Set(prev);
-            newSet.delete(data.roomId);
-            return newSet;
-          });
-          typingTimeoutsRef.current.delete(data.roomId);
-        }, 3000);
-        
-        typingTimeoutsRef.current.set(data.roomId, timeout);
+        setTyping(data.roomId, data.userId, true);
       }
     };
 
     const handleUserStoppedTyping = (data: any) => {
       if (data.userId !== user?._id && data.roomId) {
-        setTypingRooms((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(data.roomId);
-          return newSet;
-        });
-        
-        const timeout = typingTimeoutsRef.current.get(data.roomId);
-        if (timeout) {
-          clearTimeout(timeout);
-          typingTimeoutsRef.current.delete(data.roomId);
-        }
+        clearTyping(data.roomId, data.userId);
       }
     };
 
@@ -241,22 +147,55 @@ export default function ChatsPage() {
       socket.off("user-stopped-typing", handleUserStoppedTyping);
       socket.disconnect();
       globalSocketRef.current = null;
-      // Clear all typing timeouts
-      typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
-      typingTimeoutsRef.current.clear();
     };
-  }, [user?._id, queryClient]);
+  }, [user?._id, addMessage, updateChatLastMessage, updateChatUnreadCount, setTyping, clearTyping, getChat]);
 
   // Keep selectedChatRef in sync with selectedChat state
   useEffect(() => {
     selectedChatRef.current = selectedChat;
   }, [selectedChat]);
 
+  // Initialize and update selectedChat from URL chatId when chats are loaded or chatId changes
+  useEffect(() => {
+    if (chatId && chats.length > 0) {
+      const chatFromUrl = chats.find((c: ChatRoom) => c._id === chatId);
+      if (chatFromUrl && selectedChat?._id !== chatId) {
+        setSelectedChat(chatFromUrl);
+      }
+    } else if (!chatId && selectedChat) {
+      // Clear selection if chatId is removed from URL
+      setSelectedChat(null);
+    }
+  }, [chatId, chats, selectedChat]);
+
+  // Load more chats (pagination)
+  const loadMoreChats = async () => {
+    if (!chatsHasMore || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    const nextPage = currentPage + 1;
+
+    try {
+      const response = await getAllChats({ limit: 20, page: nextPage });
+      const { chats: fetchedChats, hasMore } = response.data;
+      
+      if (fetchedChats.length > 0) {
+        addChats(fetchedChats, hasMore, nextPage);
+        setCurrentPage(nextPage);
+      }
+    } catch (error) {
+      console.error("Failed to load more chats:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Infinite scroll for loading more chats
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
+        if (entries[0].isIntersecting && chatsHasMore && !isLoadingMore) {
+          loadMoreChats();
         }
       },
       {
@@ -275,13 +214,21 @@ export default function ChatsPage() {
         observer.unobserve(currentTarget);
       }
     };
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [chatsHasMore, isLoadingMore]);
 
-  const allChats = data?.pages.flatMap((page) => page.data.chats) || [];
+  // Get typing status for chats - reactive
+  const typingUsers = useChatStore((state) => state.typingUsers);
+  
+  const isChatTyping = (roomId: string) => {
+    const typingSet = typingUsers[roomId];
+    if (!typingSet || typingSet.size === 0) return false;
+    return Array.from(typingSet).some((userId) => userId !== user?._id);
+  };
+
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-base-200">
-      {/* Left Sidebar - Chat List */}
-      <div className="w-96 bg-base-100 border-r border-base-300 flex flex-col">
+          <div className="w-96 bg-base-100 border-r border-base-300 flex flex-col">
+
         {/* Header */}
         <div className="p-4 bg-base-200 border-b border-base-300">
           <h1 className="text-xl font-semibold text-base-content">Chats</h1>
@@ -289,11 +236,11 @@ export default function ChatsPage() {
 
         {/* Chat List */}
         <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
+          {loadingChats ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-base-content/60">Loading chats...</div>
             </div>
-          ) : allChats.length === 0 ? (
+          ) : chats.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-base-content/60">
                 <p>No chats yet</p>
@@ -302,27 +249,24 @@ export default function ChatsPage() {
             </div>
           ) : (
             <>
-              {allChats.map((chat) => (
+              {chats.map((chat) => (
                 <ChatRoomCard
                   key={chat._id}
                   chat={chat}
                   us={user?._id || ""}
-                  isSelected={selectedChat?._id === chat._id}
-                  isTyping={typingRooms.has(chat._id)}
+                  isSelected={selectedChat?._id === chat._id || chatId === chat._id}
+                  isTyping={isChatTyping(chat._id)}
                   onClick={() => {
-                    // Update selected chat and ensure it's the latest from cache
-                    const cachedChats = queryClient.getQueryData<
-                      InfiniteData<ChatsResponse>
-                    >(["chats", user?._id]);
-                    const latestChat = cachedChats?.pages
-                      .flatMap((page) => page.data.chats)
-                      .find((c: ChatRoom) => c._id === chat._id);
-                    setSelectedChat(latestChat || chat);
+                    // Get latest chat from store
+                    const latestChat = getChat(chat._id) || chat;
+                    setSelectedChat(latestChat);
+                    // Update URL with chatId
+                    router.push(`/chat?chatId=${chat._id}`);
                   }}
                 />
               ))}
               <div ref={observerTarget} className="py-4 text-center">
-                {isFetchingNextPage && (
+                {isLoadingMore && (
                   <div className="text-base-content/60 text-sm">
                     Loading more...
                   </div>
@@ -332,6 +276,7 @@ export default function ChatsPage() {
           )}
         </div>
       </div>
+  
 
       {/* Right Panel - Chat Window */}
       <div className="flex-1 flex flex-col">

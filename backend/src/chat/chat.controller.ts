@@ -38,12 +38,12 @@ export class ChatController {
   }
 
   @UseGuards(JwtGuard)
-  @Get(':roomId')
+  @Get(':partnerId')
   async getChatbyId(
-    @Param('roomId') roomId: string,
+    @Param('partnerId') partnerId: string,
     @Req() { user: { id: userId } }: Irequest,
   ) {
-    const room = await this.chatService.getChatById(roomId, userId);
+    const room = await this.chatService.getChatById(partnerId, userId);
     return room;
   }
 }

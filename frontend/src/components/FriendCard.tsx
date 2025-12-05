@@ -1,10 +1,16 @@
 import { LANGUAGE_TO_FLAG } from "@/constants/locations";
 import { Friend } from "@/interfaces/allInterface";
+import { getChatById } from "@/lib/apis/chat.api";
 import { getImage } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
 
 const FriendCard = ({ friend }: { friend: Friend }) => {
+  const { data: chat } = useQuery({
+    queryKey: ["partner", friend._id],
+    queryFn: () => getChatById(friend._id),
+  });
   return (
     <div className="card bg-base-200 hover:shadow-md transition-shadow">
       <div className="card-body p-4">
@@ -32,7 +38,7 @@ const FriendCard = ({ friend }: { friend: Friend }) => {
           </span>
         </div>
 
-        <Link href={`/chat/${friend._id}`} className="btn btn-outline w-full">
+        <Link href={`/chat/?chatId=${chat?._id}`} className="btn btn-outline w-full">
           Message
         </Link>
       </div>
