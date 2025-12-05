@@ -12,7 +12,9 @@ export function ChatRoomCard({
   isSelected: boolean;
   onClick: () => void;
 }) {
-  const lastMessage = chat.messages[0];
+  const lastMessage = chat.messages && chat.messages.length > 0 
+    ? chat.messages[0] 
+    : null;
 
   return (
     <div
@@ -50,20 +52,18 @@ export function ChatRoomCard({
           </div>
 
           <div className="flex items-center justify-between gap-2">
-            {lastMessage && (
+            {lastMessage ? (
               <p
                 className={`text-sm truncate ${
-                  lastMessage.isRead || lastMessage.sender == us
-                    ? "text-base-content/60"
-                    : "text-base-content font-semibold"
-                }`}
-              >
-                {lastMessage.sender == us
-                  ? "You: "
-                  : `${chat.members.fullName}: `}
-                {lastMessage.message}
-              </p>
-            )}
+                  lastMessage.isRead || lastMessage.sender == us || chat.unreadCount > 0
+                  ? "text-base-content/60"
+                  : "text-base-content font-semibold"
+              }`}
+            >
+              {lastMessage.sender == us ? "You: " : `${chat.members.fullName}: `}
+              {lastMessage.message}
+            </p>
+            ) : null}
 
             {chat.unreadCount > 0 && (
               <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold text-primary-content bg-primary rounded-full flex-shrink-0">

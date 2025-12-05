@@ -6,11 +6,12 @@ export class QueryDTO {
 }
 
 export const getAllChats = async (query?: QueryDTO) => {
-  const chats = await axiosInstance.get(
+  const response = await axiosInstance.get(
     `chat?limit=${query?.limit}&page=${query?.page}`
   );
-  //   console.log(chats.data);
-  return chats;
+  // Backend returns { chats: [...], hasMore: boolean }
+  // Frontend expects { data: { chats: [...], hasMore: boolean } }
+  return { data: response.data };
 };
 
 export const readMessagesForRoom = async (roomId: string) => {
@@ -27,10 +28,12 @@ export const getRoomMessageWithItsUnreadCount = async (
   roomId: string,
   query?: QueryDTO
 ) => {
-  const messages = await axiosInstance.get(
+  const response = await axiosInstance.get(
     `message/${roomId}?limit=${query?.limit}&page=${query?.page}`
   );
-  return messages;
+  // Backend returns { messages: [...], unreadCount: number, hasMore: boolean }
+  // Frontend expects { data: { messages: [...], unreadCount: number, hasMore: boolean } }
+  return { data: response.data };
 };
 
 export const getChatById = async (roomId: string) => {
