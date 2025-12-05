@@ -4,13 +4,16 @@ import { useAuthUser } from "@/hooks/useAuthUser";
 import { useLogout } from "@/hooks/useLogout";
 import { getNotificationCount } from "@/lib/apis/notification.api";
 import { getImage } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
-import { BellIcon, LogOutIcon, ShipWheelIcon } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BellIcon, LogOutIcon, ShipWheelIcon, MessageSquareIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import PageLoader from "./PageLoader";
 import ThemeSelector from "./ThemeSelector";
+import { unReadChatNotification } from "@/lib/apis/chat.api";
+import { useEffect, useRef } from "react";
+import { io, Socket } from "socket.io-client";
 
 const Navbar = () => {
   const { user: authUser } = useAuthUser();
@@ -23,6 +26,12 @@ const Navbar = () => {
   });
 
   const { logout: logoutMutation, isPending } = useLogout();
+  const queryClient = useQueryClient();
+  const { data: chatUnread = 0, refetch: refetchChatUnread } = useQuery({
+    queryKey: ["chat-unread-count"],
+    queryFn: unReadChatNotification,
+  });
+
   if (isPending) return <PageLoader />;
   return (
     <nav className="sticky top-0 z-50 bg-base-100/80 backdrop-blur-md border-b border-base-200">
@@ -50,11 +59,26 @@ const Navbar = () => {
 
           {/* Right-side actions */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Chats (hidden on chat page) */}
+            {!isChatPage && (
+              <Link href="/chat" className="flex-shrink-0">
+                <div className="indicator">
+                  {chatUnread > 0 && (
+                    <span className="indicator-item badge badge-success badge-xs">
+                      {chatUnread}
+                    </span>
+                  )}
+                  <button className="btn btn-ghost btn-circle btn-sm sm:btn-md hover:bg-base-200 transition-colors" title="Chats">
+                    <MessageSquareIcon className="h-5 w-5 sm:h-6 sm:w-6 text-base-content/70" />
+                  </button>
+                </div>
+              </Link>
+            )}
             {/* Notifications */}
             <Link href="/notifications" className="flex-shrink-0">
               <div className="indicator">
                 {notifications !== 0 && (
-                  <span className="indicator-item badge badge-error badge-xs">
+                  <span className="indicator-item badge badge-success badge-xs">
                     {notifications}
                   </span>
                 )}
