@@ -32,3 +32,8 @@ export const getRoomMessageWithItsUnreadCount = async (
   );
   return messages;
 };
+
+export const getChatById = async (roomId: string) => {
+  const res = await axiosInstance.get(`chat/${roomId}`);
+  return res.data;
+};

@@ -28,7 +28,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     queryKey: ["messages", chat._id],
     queryFn: ({ pageParam = 1 }) =>
       getRoomMessageWithItsUnreadCount(chat._id, {
-        limit: 20,
+        limit: 8,
         page: pageParam,
       }),
     getNextPageParam: (lastPage: MessagesResponse, allPages) => {
@@ -48,7 +48,8 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   }, [chat._id]);
 
   // Socket connection
-  // Socket connection
+  // In ChatWindow.tsx, update the socket connection effect:
+
   useEffect(() => {
     const newSocket = io("http://localhost:3001", {
       withCredentials: true,
@@ -58,41 +59,106 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     newSocket.on("connect", () => {
       console.log("Connected to socket");
       newSocket.emit("join-room", { roomId: chat._id });
+
+      // ✅ Immediately update cache when joining room
+      queryClient.setQueryData(["chats", user?._id], (oldData: any) => {
+        if (!oldData) return oldData;
+
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any) => ({
+            ...page,
+            data: {
+              ...page.data,
+              chats: page.data.chats.map((c: ChatRoom) =>
+                c._id === chat._id ? { ...c, unreadCount: 0 } : c
+              ),
+            },
+          })),
+        };
+      });
     });
 
     const handleReceiveMessage = (data: any) => {
-      console.log("🔵 Received message:", data); // Debug log
-
       const newMsg: Message = {
         _id: data._id,
         sender: data.sender,
         to: user?._id || "",
-        roomId: chat._id, // Use current chat._id
+        roomId: chat._id,
         message: data.message,
-        isRead: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        isRead: data.isRead,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
       };
 
-      queryClient.invalidateQueries({ queryKey: ["chats", user?._id] });
+      // ✅ Optimistically update the chat list with new message
+      queryClient.setQueryData(["chats", user?._id], (oldData: any) => {
+        if (!oldData) return oldData;
+
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any) => ({
+            ...page,
+            data: {
+              ...page.data,
+              chats: page.data.chats.map((c: ChatRoom) =>
+                c._id === chat._id
+                  ? {
+                      ...c,
+                      messages: [newMsg, ...(c.messages || [])],
+                      unreadCount: 0, // Keep at 0 since we're in active chat
+                    }
+                  : c
+              ),
+            },
+          })),
+        };
+      });
+
       setRealtimeMessages((prev) => [...prev, newMsg]);
     };
 
+    const handleMessagesMarkedRead = (data: any) => {
+      console.log("🟢 Messages marked as read:", data);
+
+      // ✅ Update cache for the specific room
+      queryClient.setQueryData(["chats", user?._id], (oldData: any) => {
+        if (!oldData) return oldData;
+
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any) => ({
+            ...page,
+            data: {
+              ...page.data,
+              chats: page.data.chats.map((c: ChatRoom) =>
+                c._id === data.roomId && data.userId !== user?._id
+                  ? { ...c, unreadCount: 0 }
+                  : c
+              ),
+            },
+          })),
+        };
+      });
+    };
+
     newSocket.on("receive-message", handleReceiveMessage);
+    newSocket.on("messages-marked-read", handleMessagesMarkedRead);
 
     setSocket(newSocket);
 
     return () => {
       newSocket.off("receive-message", handleReceiveMessage);
+      newSocket.off("messages-marked-read", handleMessagesMarkedRead);
       newSocket.emit("leave-room", { roomId: chat._id });
       newSocket.disconnect();
     };
   }, [chat._id, user?._id, queryClient]);
 
-  // Scroll to bottom on new messages AND initial load
+  // Scroll to bottom on new messages and initial load
   useEffect(() => {
     if (messagesData || realtimeMessages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
     }
   }, [realtimeMessages, messagesData]);
 
@@ -115,7 +181,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
           });
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.8 }
     );
 
     const currentTarget = loadMoreObserverRef.current;
@@ -192,11 +258,6 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       >
         {/* Load More Observer */}
         <div ref={loadMoreObserverRef} className="py-2 text-center">
-          {isFetchingNextPage && (
-            <div className="text-xs text-base-content/60">
-              Loading older messages...
-            </div>
-          )}
           {!hasNextPage && allMessages.length > 0 && (
             <div className="text-xs text-base-content/40">No more messages</div>
           )}
