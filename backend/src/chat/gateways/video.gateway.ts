@@ -26,11 +26,11 @@ export class WebRtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server: Server;
 
   handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
+    // console.log(`Client connected for RTC : ${client.id}`);
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
+    // console.log(`Client disconnected for RTC: ${client.id}`);
   }
 
   @SubscribeMessage('join-video-room')
@@ -79,7 +79,7 @@ export class WebRtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log('Emitted chatting-partner event');
   }
 
-  @SubscribeMessage('leave-room')
+  @SubscribeMessage('leave-video-room')
   async handleLeaveRoom(
     @MessageBody() data: { roomId: string },
     @ConnectedSocket() client: AuthenticatedSocket,

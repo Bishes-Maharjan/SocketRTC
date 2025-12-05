@@ -55,7 +55,7 @@ export class ChatService {
           await this.messageService.getRoomMessagesWithItsUnreadCount(
             userId,
             String(chat._id),
-            { limit, page },
+            { limit: 1, page: 1 },
           );
 
         return {
@@ -79,9 +79,21 @@ export class ChatService {
     };
   }
 
-  // async getRoomIdByUserId(friendsId: string[]) {
-  //   const chat = await this.chatModel.findOne({ members: { $: [userId] } });
-  //   if (!chat) throw new NotFoundException('Room Id doesnt exist');
-  //   return chat._id;
-  // }
+  async getChatById(
+    roomId: string,
+    us: string,
+  ): Promise<{
+    chat: unknown;
+  }> {
+    const chat = await this.chatModel
+      .findById(roomId)
+      .populate('members')
+      .lean();
+    if (!chat) throw new NotFoundException('Room Id doesnt exist');
+    const result = {
+      ...chat,
+      members: chat.members.find((member) => member != us),
+    };
+    return { chat: result };
+  }
 }

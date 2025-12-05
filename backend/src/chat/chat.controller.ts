@@ -36,4 +36,14 @@ export class ChatController {
       throw new ForbiddenException('User not a part of the conversation');
     return room;
   }
+
+  @UseGuards(JwtGuard)
+  @Get(':roomId')
+  async getChatbyId(
+    @Param('roomId') roomId: string,
+    @Req() { user: { id: userId } }: Irequest,
+  ) {
+    const room = await this.chatService.getChatById(roomId, userId);
+    return room;
+  }
 }

@@ -31,7 +31,12 @@ export class JwtWsGuard implements CanActivate {
       ) as ValidateUser;
 
       client.data.user = payload;
-      console.log(' User authenticated:', payload.email);
+      console.log(
+        '\n===JWTWS GUARD=== \n User authenticated:',
+        payload.id,
+        payload.email,
+        '\n===JWTS GUARD END===\n',
+      );
       return true;
     } catch (err) {
       console.log(' Auth failed:', (err as Error).message);

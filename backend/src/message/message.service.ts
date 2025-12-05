@@ -45,12 +45,14 @@ export class MessageService {
     message: string,
     senderId: string,
     recipientId: string,
+    isRead: boolean,
   ) {
     const newMessage = await this.messageModel.create({
       roomId,
       message,
       sender: senderId,
       to: recipientId,
+      isRead,
     });
 
     return newMessage;

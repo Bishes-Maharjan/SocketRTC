@@ -28,7 +28,6 @@ export class MessageController {
     @Param('roomId') roomId: string,
     @Req() { user: { id: userId } }: Irequest,
   ) {
-    console.log('HEY THIS API WAS HIT BTW', userId);
     return this.messageService.readMessage(roomId, userId);
   }
 
