@@ -63,17 +63,18 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
 
     newSocket.on("connect", () => {
       console.log("ChatWindow socket connected");
+      // Join active room (server will mark messages as read on join)
       newSocket.emit("join-room", { roomId: chat._id });
 
       // ✅ Immediately update cache when joining room - reset unread count
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: any): ChatsResponse | undefined => {
+        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
           if (!oldData) return oldData;
 
           return {
             ...oldData,
-            pages: oldData.pages.map((page: { data: { chats: ChatRoom[]; }; }) => ({
+            pages: oldData.pages.map((page) => ({
               ...page,
               data: {
                 ...page.data,
@@ -105,12 +106,12 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       // ✅ Update the chat list cache with new message
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: any): ChatsResponse | undefined => {
+        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
           if (!oldData) return oldData;
 
           return {
             ...oldData,
-            pages: oldData.pages.map((page: { data: { chats: ChatRoom[]; }; }) => ({
+            pages: oldData.pages.map((page) => ({
               ...page,
               data: {
                 ...page.data,
@@ -124,6 +125,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
                     if (messageExists) return c;
 
                     // Update with new message (keep only most recent for list view)
+                    // Since user is viewing this chat, mark as read
                     return {
                       ...c,
                       messages: [newMsg], // Only keep the most recent message for the list
@@ -139,10 +141,32 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       );
 
       // Add to realtime messages for this chat window
+      // Check against both fetched messages and existing realtime messages to avoid duplicates
       setRealtimeMessages((prev) => {
-        // Avoid duplicates
+        // Avoid duplicates by ID
         if (prev.some((m) => m._id === newMsg._id)) return prev;
-        return [...prev, newMsg];
+
+        // Also check if this message is already in fetched messages
+        const messagesData = queryClient.getQueryData<MessagesResponse>([
+          "messages",
+          chat._id,
+        ]);
+        const fetchedMessageIds = new Set(
+          messagesData?.pages
+            .flatMap((page) => page.data.messages)
+            .map((m) => m._id) || []
+        );
+        if (fetchedMessageIds.has(newMsg._id)) return prev;
+
+        // Remove any optimistic temp message that matches sender and text
+        const filteredPrev = prev.filter(
+          (m) =>
+            !m._id.startsWith("temp-") ||
+            m.sender !== newMsg.sender ||
+            m.message !== newMsg.message
+        );
+
+        return [...filteredPrev, newMsg];
       });
     };
 
@@ -152,12 +176,12 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       // ✅ Update cache for the specific room
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: any): ChatsResponse | undefined => {
+        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
           if (!oldData) return oldData;
 
           return {
             ...oldData,
-            pages: oldData.pages.map((page: { data: { chats: ChatRoom[]; }; }) => ({
+            pages: oldData.pages.map((page) => ({
               ...page,
               data: {
                 ...page.data,
@@ -231,10 +255,31 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     messagesData?.pages.flatMap((page) => page.data.messages).reverse() || [];
   const fetchedMessageIds = new Set(fetchedMessages.map((m) => m._id));
 
-  const allMessages = [
-    ...fetchedMessages,
-    ...realtimeMessages.filter((msg) => !fetchedMessageIds.has(msg._id)),
-  ];
+  // Combine fetched and realtime messages, ensuring no duplicates
+  // Use a Map to deduplicate by message ID, keeping the most recent version
+  const messageMap = new Map<string, Message>();
+
+  // Add fetched messages first
+  fetchedMessages.forEach((msg) => {
+    messageMap.set(msg._id, msg);
+  });
+
+  // Add realtime messages, dropping optimistic temp messages if real arrived
+  realtimeMessages.forEach((msg) => {
+    if (msg._id.startsWith("temp-")) {
+      // If a real message with same sender+text exists, skip temp
+      const realExists = Array.from(messageMap.values()).some(
+        (m) => m.sender === msg.sender && m.message === msg.message
+      );
+      if (realExists) return;
+    }
+    messageMap.set(msg._id, msg);
+  });
+
+  // Convert back to array and sort by createdAt
+  const allMessages = Array.from(messageMap.values()).sort((a, b) => {
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || !socket) return;
@@ -263,12 +308,12 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     // Update chat list cache optimistically
     queryClient.setQueryData(
       ["chats", user?._id],
-      (oldData: any): ChatsResponse | undefined => {
+      (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
         if (!oldData) return oldData;
 
         return {
           ...oldData,
-          pages: oldData.pages.map((page: { data: { chats: ChatRoom[]; }; }) => ({
+          pages: oldData.pages.map((page) => ({
             ...page,
             data: {
               ...page.data,

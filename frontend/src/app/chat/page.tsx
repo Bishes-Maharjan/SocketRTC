@@ -14,7 +14,6 @@ export default function ChatsPage() {
   const [selectedChat, setSelectedChat] = useState<ChatRoom | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
   const globalSocketRef = useRef<Socket | null>(null);
-  const joinedRoomsRef = useRef<Set<string>>(new Set());
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useInfiniteQuery({
@@ -31,7 +30,9 @@ export default function ChatsPage() {
       initialPageParam: 1,
     });
 
-  // Global socket connection to listen to all rooms
+  // Global socket connection to listen to messages for chat list updates
+  // This socket connects to user's personal room (automatically joined on connection)
+  // It does NOT join chat rooms - only ChatWindow joins chat rooms
   useEffect(() => {
     if (!user?._id) return;
 
@@ -43,18 +44,12 @@ export default function ChatsPage() {
     globalSocketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log("Global socket connected");
-      // Join all rooms when chats are loaded
-      const allChats = data?.pages.flatMap((page) => page.data.chats) || [];
-      allChats.forEach((chat) => {
-        if (!joinedRoomsRef.current.has(chat._id)) {
-          socket.emit("join-room", { roomId: chat._id });
-          joinedRoomsRef.current.add(chat._id);
-        }
-      });
+      console.log("Global socket connected for chat list updates");
+      // User is automatically joined to their personal room on backend connection
+      // No need to join chat rooms here - only ChatWindow joins chat rooms
     });
 
-    // Handle receiving messages for any room
+    // Handle receiving messages for any room (via user's personal room)
     const handleReceiveMessage = (data: any) => {
       const newMsg: Message = {
         _id: data._id,
@@ -70,12 +65,12 @@ export default function ChatsPage() {
       // Update cache for chats list
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: any): ChatsResponse | undefined => {
+        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
           if (!oldData) return oldData;
 
           return {
             ...oldData,
-            pages: oldData.pages.map((page: { data: { chats: ChatRoom[]; }; }) => ({
+            pages: oldData.pages.map((page) => ({
               ...page,
               data: {
                 ...page.data,
@@ -87,19 +82,20 @@ export default function ChatsPage() {
                     const messageExists = existingMessages.some(
                       (m) => m._id === newMsg._id
                     );
-                    
+
                     if (messageExists) return c;
 
                     // Add new message at the beginning (most recent)
                     const updatedMessages = [newMsg, ...existingMessages];
-                    
+
                     // Update unread count:
                     // - Don't increment if message is from current user
                     // - Don't increment if message is already read (user is viewing the chat)
                     // - Increment if message is not from current user and not read
                     const isFromCurrentUser = newMsg.sender === user?._id;
+                    const isCurrentlyViewing = selectedChat?._id === data.roomId;
                     const newUnreadCount =
-                      !isFromCurrentUser && !newMsg.isRead
+                      !isFromCurrentUser && !newMsg.isRead && !isCurrentlyViewing
                         ? (c.unreadCount || 0) + 1
                         : c.unreadCount || 0;
 
@@ -122,12 +118,12 @@ export default function ChatsPage() {
     const handleMessagesMarkedRead = (data: any) => {
       queryClient.setQueryData(
         ["chats", user?._id],
-        (oldData: any): any => {
+        (oldData: ChatsResponse | undefined): ChatsResponse | undefined => {
           if (!oldData) return oldData;
 
           return {
             ...oldData,
-            pages: oldData.pages.map((page: { data: { chats: ChatRoom[]; }; }) => ({
+            pages: oldData.pages.map((page: ChatsResponse["data"]) => ({
               ...page,
               data: {
                 ...page.data,
@@ -151,22 +147,8 @@ export default function ChatsPage() {
       socket.off("messages-marked-read", handleMessagesMarkedRead);
       socket.disconnect();
       globalSocketRef.current = null;
-      joinedRoomsRef.current.clear();
     };
-  }, [user?._id, queryClient, data]);
-
-  // Join new rooms when chats are loaded or updated
-  useEffect(() => {
-    if (!globalSocketRef.current?.connected || !data) return;
-
-    const allChats = data.pages.flatMap((page) => page.data.chats) || [];
-    allChats.forEach((chat) => {
-      if (!joinedRoomsRef.current.has(chat._id)) {
-        globalSocketRef.current?.emit("join-room", { roomId: chat._id });
-        joinedRoomsRef.current.add(chat._id);
-      }
-    });
-  }, [data]);
+  }, [user?._id, queryClient, selectedChat?._id]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -226,13 +208,12 @@ export default function ChatsPage() {
                   isSelected={selectedChat?._id === chat._id}
                   onClick={() => {
                     // Update selected chat and ensure it's the latest from cache
-                    const cachedChats = queryClient.getQueryData<ChatsResponse>([
-                      "chats",
-                      user?._id,
-                    ]);
-                    const latestChat = (cachedChats as any)?.pages
-                      .flatMap((page: { data: { chats: ChatRoom[]; }; }) => page.data.chats)
-                      .find((c: ChatRoom) => c._id === chat._id);
+                    const cachedChats = queryClient.getQueryData<ChatsResponse>(
+                      ["chats", user?._id]
+                    );
+                    const latestChat = cachedChats?.pages
+                      .flatMap((page) => page.data.chats)
+                      .find((c) => c._id === chat._id);
                     setSelectedChat(latestChat || chat);
                   }}
                 />

@@ -108,6 +108,12 @@ export class ChatGateway
         this.userSockets.set(userId, new Set());
       }
       this.userSockets.get(userId)!.add(client.id);
+
+      // Join user to their personal room for receiving messages without joining chat rooms
+      const userRoom = `user:${userId}`;
+      void client.join(userRoom);
+      console.log(`User ${userId} joined personal room: ${userRoom}`);
+
       console.log('User Socket', this.userSockets);
       console.log('\n===End of Handle Connection===');
     }
@@ -209,11 +215,18 @@ export class ChatGateway
     }
     this.socketRooms.get(client.id)!.add(roomId);
 
-    // Mark all messages in this room as read for this user
+    // Mark all messages as read when user joins the room
     await this.messageService.markRoomMessagesAsRead(roomId, userId);
 
     // Emit to all clients in the room that messages were marked as read
     this.server.to(roomId).emit('messages-marked-read', {
+      roomId,
+      userId,
+    });
+
+    // Also emit to user's personal room for chat list updates
+    const userRoom = `user:${userId}`;
+    this.server.to(userRoom).emit('messages-marked-read', {
       roomId,
       userId,
     });
@@ -285,20 +298,33 @@ export class ChatGateway
       recipientIsInRoom,
     );
 
-    // Emit message to everyone in the room
-    this.server.to(roomId).emit('receive-message', {
+    const messageData = {
       _id: savedMessage._id,
       sender: senderId,
+      to: chatPartner,
       message,
       roomId,
       isRead: savedMessage.isRead,
       createdAt: savedMessage.createdAt,
       updatedAt: savedMessage.updatedAt,
-    });
+    };
+
+    // Emit message to everyone in the chat room (for active viewers)
+    this.server.to(roomId).emit('receive-message', messageData);
+
+    // Also emit to recipient's personal room (for chat list updates)
+    // This allows the global socket to receive messages without joining chat rooms
+    const recipientUserRoom = `user:${chatPartner}`;
+    this.server.to(recipientUserRoom).emit('receive-message', messageData);
 
     // If message was auto-read, notify sender
     if (recipientIsInRoom) {
       this.server.to(roomId).emit('messages-marked-read', {
+        roomId,
+        userId: chatPartner,
+      });
+      // Also notify recipient's personal room
+      this.server.to(recipientUserRoom).emit('messages-marked-read', {
         roomId,
         userId: chatPartner,
       });
