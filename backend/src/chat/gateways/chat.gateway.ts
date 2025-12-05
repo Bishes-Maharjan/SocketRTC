@@ -332,6 +332,54 @@ export class ChatGateway
     console.log('\n===End of send message===');
   }
 
+  @UseGuards(JwtWsGuard)
+  @SubscribeMessage('typing')
+  handleTyping(
+    @MessageBody() { roomId }: { roomId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const userId = client.data.user?.id;
+    if (!userId || !roomId) return;
+
+    // Emit typing event to all other users in the room
+    client.to(roomId).emit('user-typing', {
+      roomId,
+      userId,
+      userName: client.data.user?.email,
+    });
+
+    // Also emit to user's personal room for chat list updates
+    const userRoom = `user:${userId}`;
+    this.server.to(userRoom).emit('user-typing', {
+      roomId,
+      userId,
+      userName: client.data.user?.email,
+    });
+  }
+
+  @UseGuards(JwtWsGuard)
+  @SubscribeMessage('stop-typing')
+  handleStopTyping(
+    @MessageBody() { roomId }: { roomId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const userId = client.data.user?.id;
+    if (!userId || !roomId) return;
+
+    // Emit stop typing event to all other users in the room
+    client.to(roomId).emit('user-stopped-typing', {
+      roomId,
+      userId,
+    });
+
+    // Also emit to user's personal room for chat list updates
+    const userRoom = `user:${userId}`;
+    this.server.to(userRoom).emit('user-stopped-typing', {
+      roomId,
+      userId,
+    });
+  }
+
   /**
    * Debug endpoint to check room status
    */

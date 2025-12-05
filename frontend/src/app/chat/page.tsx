@@ -16,6 +16,8 @@ export default function ChatsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedChat, setSelectedChat] = useState<ChatRoom | null>(null);
+  const [typingRooms, setTypingRooms] = useState<Set<string>>(new Set());
+  const typingTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const observerTarget = useRef<HTMLDivElement>(null);
   const globalSocketRef = useRef<Socket | null>(null);
   const selectedChatRef = useRef<ChatRoom | null>(null);
@@ -149,14 +151,62 @@ export default function ChatsPage() {
       );
     };
 
+    const handleUserTyping = (data: any) => {
+      // Only show typing if it's not from current user
+      if (data.userId !== user?._id && data.roomId) {
+        setTypingRooms((prev) => new Set(prev).add(data.roomId));
+        
+        // Clear existing timeout for this room
+        const existingTimeout = typingTimeoutsRef.current.get(data.roomId);
+        if (existingTimeout) {
+          clearTimeout(existingTimeout);
+        }
+        
+        // Auto-clear typing indicator after 3 seconds
+        const timeout = setTimeout(() => {
+          setTypingRooms((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(data.roomId);
+            return newSet;
+          });
+          typingTimeoutsRef.current.delete(data.roomId);
+        }, 3000);
+        
+        typingTimeoutsRef.current.set(data.roomId, timeout);
+      }
+    };
+
+    const handleUserStoppedTyping = (data: any) => {
+      if (data.userId !== user?._id && data.roomId) {
+        setTypingRooms((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(data.roomId);
+          return newSet;
+        });
+        
+        const timeout = typingTimeoutsRef.current.get(data.roomId);
+        if (timeout) {
+          clearTimeout(timeout);
+          typingTimeoutsRef.current.delete(data.roomId);
+        }
+      }
+    };
+
     socket.on("receive-message", handleReceiveMessage);
     socket.on("messages-marked-read", handleMessagesMarkedRead);
+    socket.on("user-typing", handleUserTyping);
+    socket.on("user-stopped-typing", handleUserStoppedTyping);
 
     return () => {
       socket.off("receive-message", handleReceiveMessage);
       socket.off("messages-marked-read", handleMessagesMarkedRead);
+      socket.off("user-typing", handleUserTyping);
+      socket.off("user-stopped-typing", handleUserStoppedTyping);
       socket.disconnect();
       globalSocketRef.current = null;
+      // Clear all typing timeouts
+      typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+      typingTimeoutsRef.current.clear();
     };
   }, [user?._id, queryClient]);
 
@@ -221,6 +271,7 @@ export default function ChatsPage() {
                   chat={chat}
                   us={user?._id || ""}
                   isSelected={selectedChat?._id === chat._id}
+                  isTyping={typingRooms.has(chat._id)}
                   onClick={() => {
                     // Update selected chat and ensure it's the latest from cache
                     const cachedChats = queryClient.getQueryData<

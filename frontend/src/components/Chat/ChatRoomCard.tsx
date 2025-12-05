@@ -1,15 +1,18 @@
 import { ChatRoom } from "@/interfaces/allInterface";
 import { formatMessageTime, getImage } from "@/lib/utils";
+import { TypingIndicator } from "./TypingIndicator";
 import Image from "next/image";
 export function ChatRoomCard({
   chat,
   us,
   isSelected,
+  isTyping,
   onClick,
 }: {
   chat: ChatRoom;
   us: string;
   isSelected: boolean;
+  isTyping?: boolean;
   onClick: () => void;
 }) {
   const lastMessage =
@@ -51,7 +54,12 @@ export function ChatRoomCard({
           </div>
 
           <div className="flex items-center justify-between gap-2">
-            {lastMessage ? (
+            {isTyping ? (
+              <TypingIndicator
+                label={`${chat.members.fullName} is typing`}
+                containerClassName="text-base-content/60"
+              />
+            ) : lastMessage ? (
               <p
                 className={`text-sm truncate ${
                   lastMessage.isRead || lastMessage.sender == us || chat.unreadCount <= 0

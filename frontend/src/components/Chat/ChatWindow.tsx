@@ -12,6 +12,8 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { MessageBubble } from "./MessageBubble";
+import { TypingIndicator } from "./TypingIndicator";
+import { LoaderIcon, LoaderPinwheel } from "lucide-react";
 
 export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const { user } = useAuth();
@@ -21,6 +23,8 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreObserverRef = useRef<HTMLDivElement>(null);
   const [realtimeMessages, setRealtimeMessages] = useState<Message[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const queryClient = useQueryClient();
 
   const {
@@ -50,6 +54,11 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   useEffect(() => {
     setRealtimeMessages([]);
     setNewMessage("");
+    setIsTyping(false);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
   }, [chat._id]);
 
   // Socket connection
@@ -197,16 +206,48 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       );
     };
 
+    const handleUserTyping = (data: any) => {
+      // Only show typing indicator if it's not from current user
+      if (data.userId !== user?._id && data.roomId === chat._id) {
+        setIsTyping(true);
+        // Clear existing timeout
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+        // Auto-clear typing indicator after 3 seconds
+        typingTimeoutRef.current = setTimeout(() => {
+          setIsTyping(false);
+        }, 3000);
+      }
+    };
+
+    const handleUserStoppedTyping = (data: any) => {
+      if (data.userId !== user?._id && data.roomId === chat._id) {
+        setIsTyping(false);
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = null;
+        }
+      }
+    };
+
     newSocket.on("receive-message", handleReceiveMessage);
     newSocket.on("messages-marked-read", handleMessagesMarkedRead);
+    newSocket.on("user-typing", handleUserTyping);
+    newSocket.on("user-stopped-typing", handleUserStoppedTyping);
 
     setSocket(newSocket);
 
     return () => {
       newSocket.off("receive-message", handleReceiveMessage);
       newSocket.off("messages-marked-read", handleMessagesMarkedRead);
+      newSocket.off("user-typing", handleUserTyping);
+      newSocket.off("user-stopped-typing", handleUserStoppedTyping);
       newSocket.emit("leave-room", { roomId: chat._id });
       newSocket.disconnect();
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
     };
   }, [chat._id, user?._id, queryClient]);
 
@@ -281,6 +322,11 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   });
 
+  // Find the most recent message sent by the current user that has been read
+  const mostRecentReadMessage = allMessages
+    .filter((msg) => msg.sender === user?._id && msg.isRead)
+    .pop(); // Get the last one (most recent) since array is sorted ascending
+
   const handleSendMessage = () => {
     if (!newMessage.trim() || !socket) return;
 
@@ -338,6 +384,43 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
+      // Stop typing when message is sent
+      if (socket) {
+        socket.emit("stop-typing", { roomId: chat._id });
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    }
+  };
+
+  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setNewMessage(value);
+
+    // Emit typing event when user starts typing
+    if (socket && value.trim().length > 0) {
+      socket.emit("typing", { roomId: chat._id });
+      
+      // Clear existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Stop typing after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        if (socket) {
+          socket.emit("stop-typing", { roomId: chat._id });
+        }
+      }, 2000);
+    } else if (socket && value.trim().length === 0) {
+      // Stop typing if input is cleared
+      socket.emit("stop-typing", { roomId: chat._id });
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
     }
   };
 
@@ -383,7 +466,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
 
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-base-content/60">Loading messages...</div>
+           <LoaderIcon className="animate-spin size-10 text-primary" />
           </div>
         ) : allMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
@@ -395,18 +478,28 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         ) : (
           <>
             {allMessages.map((message, index) => (
-             <> <MessageBubble
-                key={message._id || index}
-                message={message}
-                isOwn={message.sender === user?._id}
-              />
-              {Number(index) == 0 && message.sender == user?._id && message.isRead && (
-                <div className="text-xs text-base-content/60">
-                  {chat.members.fullName} read the message at {formatMessageTime(message.updatedAt)}
-                </div>
-              )}
-              </>
+              <div key={message._id || index}>
+                <MessageBubble
+                  message={message}
+                  isOwn={message.sender === user?._id}
+                />
+                {mostRecentReadMessage && message._id === mostRecentReadMessage._id && (
+                  <div className={`text-xs text-base-content/60 ${message.sender === user?._id ? "text-end" : "text-start"}`}>
+                    seen, {formatMessageTime(message.updatedAt)}
+                  </div>
+                )}
+              </div>
             ))}
+            {isTyping && (
+              <div className="flex mb-4 justify-start">
+                <div className="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-base-100 text-base-content rounded-bl-none shadow-sm border border-base-300">
+                  <TypingIndicator
+                    label={`${chat.members.fullName} is typing`}
+                    containerClassName="text-base-content/60"
+                  />
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </>
         )}
@@ -418,7 +511,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={handleMessageChange}
             onKeyDown={handleKeyPress}
             placeholder="Type a message..."
             className="flex-1 input input-bordered focus:input-primary"
