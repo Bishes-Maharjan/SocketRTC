@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
+import { useAuth } from '@/auth/AuthProvider';
+import toast from 'react-hot-toast';
 
 const ICE_SERVERS = {
   iceServers: [
@@ -20,6 +22,8 @@ interface LogEntry {
 }
 
 export default function VideoCallPage({ roomId }: { roomId: string }) {
+  const { user } = useAuth();
+  const router = useRouter();
   // Refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -28,6 +32,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
   const socketRef = useRef<Socket | null>(null);
   const remotePeerIdRef = useRef<string | null>(null);
   const hasSetLocalVideo = useRef<boolean>(false);
+  const chatSocketRef = useRef<Socket | null>(null);
 
   // State
   const [isConnected, setIsConnected] = useState(false);
@@ -51,10 +56,17 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     try {
       log('Requesting media devices...', 'info');
 
-      // Get local media stream
+      // Get local media stream with echo cancellation
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
 
       localStreamRef.current = stream;
@@ -417,6 +429,47 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     }
   }, [isInCall, localStreamRef.current]);
 
+  // Listen for rejectCall events (caller receives rejection)
+  useEffect(() => {
+    if (!user?._id) return;
+
+    // Connect to chat gateway to listen for rejectCall
+    const chatSocket = io('http://localhost:3001', {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+    });
+
+    chatSocketRef.current = chatSocket;
+
+    chatSocket.on('connect', () => {
+      console.log('Chat socket connected for rejectCall listening');
+    });
+
+    chatSocket.on('rejectCall', (data: { to: string; from: string; roomId: string }) => {
+      // Check if the rejection is for us (we are the caller)
+      if (data.to === user._id && data.roomId === roomId) {
+        log('Call rejected by recipient', 'error');
+        toast.error('Call denied', {
+          position: 'top-center',
+        });
+        
+        // Leave the room automatically
+        leaveRoom();
+        
+        // Navigate back to chat after a short delay
+        setTimeout(() => {
+          router.push(`/chat?chatId=${roomId}`);
+        }, 1000);
+      }
+    });
+
+    return () => {
+      chatSocket.off('rejectCall');
+      chatSocket.disconnect();
+      chatSocketRef.current = null;
+    };
+  }, [user?._id, roomId, router]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -428,6 +481,9 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       }
       if (socketRef.current) {
         socketRef.current.disconnect();
+      }
+      if (chatSocketRef.current) {
+        chatSocketRef.current.disconnect();
       }
     };
   }, []);
