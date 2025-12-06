@@ -8,10 +8,12 @@ import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
-import { LoaderIcon } from "lucide-react";
+import { LoaderIcon, Video } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const { user } = useAuth();
+  const router = useRouter();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -148,10 +150,19 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       }
     };
 
+    const handleRejectCall = (data: any) => {
+      // Check if the rejection is for us (we are the caller)
+      if (data.to === user?._id && data.roomId === chat._id) {
+        // Call was rejected by the recipient
+        console.log("Call rejected by recipient");
+      }
+    };
+
     newSocket.on("receive-message", handleReceiveMessage);
     newSocket.on("messages-marked-read", handleMessagesMarkedRead);
     newSocket.on("user-typing", handleUserTyping);
     newSocket.on("user-stopped-typing", handleUserStoppedTyping);
+    newSocket.on("rejectCall", handleRejectCall);
 
     setSocket(newSocket);
 
@@ -160,6 +171,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       newSocket.off("messages-marked-read", handleMessagesMarkedRead);
       newSocket.off("user-typing", handleUserTyping);
       newSocket.off("user-stopped-typing", handleUserStoppedTyping);
+      newSocket.off("rejectCall", handleRejectCall);
       newSocket.emit("leave-room", { roomId: chat._id });
       newSocket.disconnect();
       if (typingTimeoutRef.current) {
@@ -302,32 +314,58 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     }
   };
 
+  const handleVideoCall = () => {
+    if (!socket || !user?._id || !chat.members._id) return;
+
+    const toUserId = chat.members._id;
+    const fromUserId = user._id;
+
+    // Emit call event
+    socket.emit("call", {
+      roomId: chat._id,
+      to: toUserId,
+      from: fromUserId,
+    });
+
+    // Navigate to video call page
+    router.push(`/call/${chat._id}`);
+  };
+
   return (
     <>
       {/* Chat Header */}
-      <div className="p-4 bg-base-100 border-b border-base-300 flex items-center gap-3 flex-shrink-0">
-        <div className="relative w-10 h-10 rounded-full overflow-hidden">
-          {chat.members.image ? (
-            <Image
-              src={getImage(chat.members.provider, chat.members.image)}
-              alt={chat.members.fullName}
-              fill
-              className="object-cover"
-            />
-          ) : (
-            <div className="w-full h-full bg-primary flex items-center justify-center text-primary-content font-semibold">
-              {chat.members.fullName.charAt(0).toUpperCase()}
-            </div>
-          )}
+      <div className="p-4 bg-base-100 border-b border-base-300 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative w-10 h-10 rounded-full overflow-hidden">
+            {chat.members.image ? (
+              <Image
+                src={getImage(chat.members.provider, chat.members.image)}
+                alt={chat.members.fullName}
+                fill
+                className="object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-primary flex items-center justify-center text-primary-content font-semibold">
+                {chat.members.fullName.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div>
+            <h2 className="font-semibold text-base-content">
+              {chat.members.fullName}
+            </h2>
+            <p className="text-xs text-base-content/60">
+              {chat.members.location}
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="font-semibold text-base-content">
-            {chat.members.fullName}
-          </h2>
-          <p className="text-xs text-base-content/60">
-            {chat.members.location}
-          </p>
-        </div>
+        <button
+          onClick={handleVideoCall}
+          className="btn btn-circle btn-primary btn-sm"
+          title="Start video call"
+        >
+          <Video className="size-5" />
+        </button>
       </div>
 
       {/* Messages Area */}

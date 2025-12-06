@@ -380,6 +380,62 @@ export class ChatGateway
     });
   }
 
+  @UseGuards(JwtWsGuard)
+  @SubscribeMessage('call')
+  async handleCall(
+    @MessageBody() data: { roomId: string; to: string; from: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const { roomId, to, from } = data;
+    const callerId = client.data.user?.id;
+
+    if (!callerId || callerId !== from) {
+      throw new WsException('Unauthorized: Caller ID mismatch');
+    }
+
+    // Verify room exists
+    const roomExists = await this.chatService.checkRoomId(roomId);
+    if (!roomExists) {
+      throw new WsException('Room Id doesnt exist for ' + roomId);
+    }
+
+    // Emit calling event to recipient's personal room
+    const recipientUserRoom = `user:${to}`;
+    this.server.to(recipientUserRoom).emit('calling', {
+      roomId,
+      to,
+      from,
+    });
+
+    console.log(`Call initiated: ${from} calling ${to} in room ${roomId}`);
+  }
+
+  @UseGuards(JwtWsGuard)
+  @SubscribeMessage('rejectCall')
+  handleRejectCall(
+    @MessageBody() data: { to: string; from: string; roomId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const { to, from, roomId } = data;
+    const rejecterId = client.data.user?.id;
+
+    if (!rejecterId || rejecterId !== from) {
+      throw new WsException('Unauthorized: Rejecter ID mismatch');
+    }
+
+    // Emit rejectCall event to caller's personal room
+    const callerUserRoom = `user:${to}`;
+    this.server.to(callerUserRoom).emit('rejectCall', {
+      to,
+      from,
+      roomId,
+    });
+
+    console.log(
+      `Call rejected: ${from} rejected call from ${to} in room ${roomId}`,
+    );
+  }
+
   /**
    * Debug endpoint to check room status
    */

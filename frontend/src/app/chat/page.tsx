@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import React from "react";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function ChatsPage({ searchParams }: { searchParams: Promise<{ chatId: string }> }) {
   const { user } = useAuth();
@@ -135,20 +136,90 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       }
     };
 
+    const handleCalling = (data: any) => {
+      // Check if the call is for us
+      if (data.to === user?._id) {
+        const chatPartner = chats.find((c: ChatRoom) => c._id === data.roomId);
+        const callerName = chatPartner?.members.fullName || "Someone";
+
+        // Show toast with pickup and reject buttons
+        toast(
+          (t) => (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">{callerName} is calling you</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    // Navigate to video call page
+                    router.push(`/call/${data.roomId}`);
+                  }}
+                  className="btn btn-primary btn-sm"
+                >
+                  Pick Up
+                </button>
+                <button
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    // Send reject call
+                    if (globalSocketRef.current) {
+                      globalSocketRef.current.emit("rejectCall", {
+                        to: data.from,
+                        from: user?._id,
+                        roomId: data.roomId,
+                      });
+                    }
+                  }}
+                  className="btn btn-error btn-sm"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ),
+          {
+            duration: 30000, // 30 seconds
+            position: "top-center",
+            style: {
+              background: "hsl(var(--b1))",
+              color: "hsl(var(--bc))",
+              padding: "16px",
+              borderRadius: "8px",
+            },
+          }
+        );
+      }
+    };
+
+    const handleRejectCall = (data: any) => {
+      // Check if the rejection is for us (we are the caller)
+      if (data.to === user?._id) {
+        toast.error("Call denied", {
+          position: "top-center",
+        });
+        // Leave the video call room if we're on the call page
+        // The VideoPage component will handle cleanup
+      }
+    };
+
     socket.on("receive-message", handleReceiveMessage);
     socket.on("messages-marked-read", handleMessagesMarkedRead);
     socket.on("user-typing", handleUserTyping);
     socket.on("user-stopped-typing", handleUserStoppedTyping);
+    socket.on("calling", handleCalling);
+    socket.on("rejectCall", handleRejectCall);
 
     return () => {
       socket.off("receive-message", handleReceiveMessage);
       socket.off("messages-marked-read", handleMessagesMarkedRead);
       socket.off("user-typing", handleUserTyping);
       socket.off("user-stopped-typing", handleUserStoppedTyping);
+      socket.off("calling", handleCalling);
+      socket.off("rejectCall", handleRejectCall);
       socket.disconnect();
       globalSocketRef.current = null;
     };
-  }, [user?._id, addMessage, updateChatLastMessage, updateChatUnreadCount, setTyping, clearTyping, getChat]);
+  }, [user?._id, addMessage, updateChatLastMessage, updateChatUnreadCount, setTyping, clearTyping, getChat, chats, router]);
 
   // Keep selectedChatRef in sync with selectedChat state
   useEffect(() => {
@@ -226,8 +297,10 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-base-200">
-          <div className="w-96 bg-base-100 border-r border-base-300 flex flex-col">
+    <>
+      <Toaster />
+      <div className="flex h-[calc(100vh-4rem)] bg-base-200">
+        <div className="w-96 bg-base-100 border-r border-base-300 flex flex-col">
 
         {/* Header */}
         <div className="p-4 bg-base-200 border-b border-base-300">
@@ -297,5 +370,6 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
         )}
       </div>
     </div>
+    </>
   );
 }
