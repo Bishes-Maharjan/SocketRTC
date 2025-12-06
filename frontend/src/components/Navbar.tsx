@@ -12,14 +12,14 @@ import { usePathname } from "next/navigation";
 import PageLoader from "./PageLoader";
 import ThemeSelector from "./ThemeSelector";
 import { unReadChatNotification } from "@/lib/apis/chat.api";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
 const Navbar = () => {
   const { user: authUser } = useAuthUser();
   const location = usePathname();
   const isChatPage = location?.startsWith("/chat");
-
+const [chatUnread, setChatUnread] = useState(0);
   const { data: notifications = 0 } = useQuery({
     queryKey: ["notification"],
     queryFn: getNotificationCount,
@@ -27,11 +27,13 @@ const Navbar = () => {
 
   const { logout: logoutMutation, isPending } = useLogout();
   const queryClient = useQueryClient();
-  const { data: chatUnread = 0, refetch: refetchChatUnread } = useQuery({
-    queryKey: ["chat-unread-count"],
-    queryFn: unReadChatNotification,
-  });
-
+ useEffect(() => { 
+  const fetchChatUnread = async () => {
+const count = await unReadChatNotification();
+ setChatUnread(count);
+ }
+ fetchChatUnread();
+ }, [isPending]);
   if (isPending) return <PageLoader />;
   return (
     <nav className="sticky top-0 z-50 bg-base-100/80 backdrop-blur-md border-b border-base-200">
