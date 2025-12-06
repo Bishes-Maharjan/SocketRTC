@@ -4,15 +4,15 @@
 import { UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
-  ConnectedSocket,
-  MessageBody,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-  OnGatewayInit,
-  SubscribeMessage,
-  WebSocketGateway,
-  WebSocketServer,
-  WsException,
+    ConnectedSocket,
+    MessageBody,
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnGatewayInit,
+    SubscribeMessage,
+    WebSocketGateway,
+    WebSocketServer,
+    WsException,
 } from '@nestjs/websockets';
 import { parse } from 'cookie';
 import { Server } from 'socket.io';
@@ -378,6 +378,67 @@ export class ChatGateway
       roomId,
       userId,
     });
+  }
+
+  @UseGuards(JwtWsGuard)
+  @SubscribeMessage('call-request')
+  async handleCallRequest(
+    @MessageBody() { roomId }: { roomId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const roomExists = await this.chatService.checkRoomId(roomId);
+    if (!roomExists) throw new WsException('Room Id doesnt exist for' + roomId);
+    
+    const fromUserId = client.data.user?.id;
+    const callerName = client.data.user?.email || 'Unknown User';
+    
+    // Emit to the room - all users in the room will receive it
+    // Frontend will filter to show only to the recipient
+    this.server.to(roomId).emit('incoming-call', { 
+      roomId, 
+      from: fromUserId, 
+      callerName 
+    });
+    console.log(`Call request sent to room ${roomId} from ${fromUserId}`);
+  }
+
+  @UseGuards(JwtWsGuard)
+  @SubscribeMessage('call-cancel')
+  handleCallCancel(
+    @MessageBody() { roomId }: { roomId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const cancelerId = client.data.user?.id;
+    
+    // Emit to the room
+    this.server.to(roomId).emit('call-cancelled', { roomId, canceller: cancelerId });
+    console.log(`Call cancelled in room ${roomId} by ${cancellerId}`);
+  }
+
+  @UseGuards(JwtWsGuard)
+  @SubscribeMessage('call-accept')
+  handleCallAccept(
+    @MessageBody() { roomId }: { roomId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const accepterId = client.data.user?.id;
+    
+    // Emit to the room
+    this.server.to(roomId).emit('call-accepted', { roomId, accepter: accepterId });
+    console.log(`Call accepted in room ${roomId} by ${accepterId}`);
+  }
+
+  @UseGuards(JwtWsGuard)
+  @SubscribeMessage('call-reject')
+  handleCallReject(
+    @MessageBody() { roomId }: { roomId: string },
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ) {
+    const rejecterId = client.data.user?.id;
+    
+    // Emit to the room
+    this.server.to(roomId).emit('call-rejected', { roomId, rejecter: rejecterId });
+    console.log(`Call rejected in room ${roomId} by ${rejecterId}`);
   }
 
   /**

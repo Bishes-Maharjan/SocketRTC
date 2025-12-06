@@ -3,15 +3,17 @@ import { ChatRoom, Message } from "@/interfaces/allInterface";
 import { getRoomMessageWithItsUnreadCount } from "@/lib/apis/chat.api";
 import { formatMessageTime, getImage } from "@/lib/utils";
 import { useChatStore } from "@/stores/useChatStore";
+import { LoaderIcon, PhoneOffIcon, VideoIcon } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
-import { LoaderIcon } from "lucide-react";
 
 export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const { user } = useAuth();
+  const router = useRouter();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -21,6 +23,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<{ roomId: string; from: string; callerName: string } | null>(null);
 
   // Zustand store
   const {
@@ -124,6 +127,36 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       updateChatUnreadCount(chat._id, 0);
     };
 
+    const handleIncomingCall = (data: any) => {
+      // Only show if it's for this room and not from current user
+      if (data.roomId === chat._id && data.from !== user?._id) {
+        setIncomingCall({
+          roomId: data.roomId,
+          from: data.from,
+          callerName: data.callerName || chat.members.fullName || "Unknown User",
+        });
+      }
+    };
+
+    const handleCallAccepted = (data: any) => {
+      if (data.roomId === chat._id && data.accepter !== user?._id) {
+        setIncomingCall(null);
+        // Caller will be redirected by the call page itself
+      }
+    };
+
+    const handleCallRejected = (data: any) => {
+      if (data.roomId === chat._id) {
+        setIncomingCall(null);
+      }
+    };
+
+    const handleCallCancelled = (data: any) => {
+      if (data.roomId === chat._id) {
+        setIncomingCall(null);
+      }
+    };
+
     const handleMessagesMarkedRead = (data: any) => {
       if (data.roomId === chat._id) {
         // Mark all messages as read in store
@@ -149,6 +182,10 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     };
 
     newSocket.on("receive-message", handleReceiveMessage);
+    newSocket.on("incoming-call", handleIncomingCall);
+    newSocket.on("call-accepted", handleCallAccepted);
+    newSocket.on("call-rejected", handleCallRejected);
+    newSocket.on("call-cancelled", handleCallCancelled);
     newSocket.on("messages-marked-read", handleMessagesMarkedRead);
     newSocket.on("user-typing", handleUserTyping);
     newSocket.on("user-stopped-typing", handleUserStoppedTyping);
@@ -157,6 +194,10 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
 
     return () => {
       newSocket.off("receive-message", handleReceiveMessage);
+      newSocket.off("incoming-call", handleIncomingCall);
+      newSocket.off("call-accepted", handleCallAccepted);
+      newSocket.off("call-rejected", handleCallRejected);
+      newSocket.off("call-cancelled", handleCallCancelled);
       newSocket.off("messages-marked-read", handleMessagesMarkedRead);
       newSocket.off("user-typing", handleUserTyping);
       newSocket.off("user-stopped-typing", handleUserStoppedTyping);
@@ -166,7 +207,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-      }, [chat._id, user?._id, updateChatLastMessage, updateChatUnreadCount, markMessagesAsRead, setTyping, clearTyping, addMessage]);
+      }, [chat._id, user?._id, updateChatLastMessage, updateChatUnreadCount, markMessagesAsRead, setTyping, clearTyping, addMessage, router]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -258,6 +299,30 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     setNewMessage("");
   };
 
+  const startCall = () => {
+    if (!socket) return;
+    
+    socket.emit("call-request", { roomId: chat._id });
+    
+    // Navigate directly to call page
+    router.push(`/call?roomId=${chat._id}`);
+  };
+
+
+  const acceptCall = () => {
+    if (!socket || !incomingCall) return;
+    socket.emit("call-accept", { roomId: chat._id });
+    setIncomingCall(null);
+    // Navigate directly to call page
+    router.push(`/call?roomId=${chat._id}`);
+  };
+
+  const rejectCall = () => {
+    if (!socket || !incomingCall) return;
+    socket.emit("call-reject", { roomId: chat._id });
+    setIncomingCall(null);
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -305,35 +370,79 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   return (
     <>
       {/* Chat Header */}
-      <div className="p-4 bg-base-100 border-b border-base-300 flex items-center gap-3 flex-shrink-0">
-        <div className="relative w-10 h-10 rounded-full overflow-hidden">
-          {chat.members.image ? (
-            <Image
-              src={getImage(chat.members.provider, chat.members.image)}
-              alt={chat.members.fullName}
-              fill
-              className="object-cover"
-            />
-          ) : (
-            <div className="w-full h-full bg-primary flex items-center justify-center text-primary-content font-semibold">
-              {chat.members.fullName.charAt(0).toUpperCase()}
+      <div className="p-4 bg-base-100 border-b border-base-300 flex flex-col gap-2 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="relative w-10 h-10 rounded-full overflow-hidden">
+            {chat.members.image ? (
+              <Image
+                src={getImage(chat.members.provider, chat.members.image)}
+                alt={chat.members.fullName}
+                fill
+                className="object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-primary flex items-center justify-center text-primary-content font-semibold">
+                {chat.members.fullName.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div className="flex-1 flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-base-content">
+                {chat.members.fullName}
+              </h2>
+              <p className="text-xs text-base-content/60">
+                {chat.members.location}
+              </p>
             </div>
-          )}
+          <div className="flex items-center gap-2">
+            <button className="btn btn-sm btn-primary" onClick={startCall}>
+              <VideoIcon className="size-4 mr-1" />
+              Call
+            </button>
+          </div>
+          </div>
         </div>
-        <div>
-          <h2 className="font-semibold text-base-content">
-            {chat.members.fullName}
-          </h2>
-          <p className="text-xs text-base-content/60">
-            {chat.members.location}
-          </p>
-        </div>
+
+        {/* Incoming Call Toast - Near Header */}
+        {incomingCall && (
+          <div className="px-2 py-2 rounded-lg bg-success/10 border border-success/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-content font-bold text-sm">
+                  {incomingCall.callerName.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-base-content">
+                    {incomingCall.callerName} is calling...
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={rejectCall}
+                  className="btn btn-xs btn-error text-error-content"
+                >
+                  <PhoneOffIcon className="size-3 mr-1" />
+                  Decline
+                </button>
+                <button
+                  onClick={acceptCall}
+                  className="btn btn-xs btn-success text-success-content"
+                >
+                  <VideoIcon className="size-3 mr-1" />
+                  Accept
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Messages Area */}
       <div
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 bg-base-200"
+        className="relative flex-1 overflow-y-auto p-4 bg-base-200"
       >
         {/* Load More Observer */}
         <div ref={loadMoreObserverRef} className="py-2 text-center">

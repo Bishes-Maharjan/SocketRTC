@@ -16,8 +16,17 @@ import { AuthenticatedSocket } from '../dtos/chat.dto';
 
 @WebSocketGateway({
   cors: {
-    origin: 'http://localhost:3001',
+    origin: [
+      process.env.NODE_ENV === 'production'
+        ? process.env.FRONTEND_URL
+        : 'http://localhost:3000',
+      'http://127.0.0.1:5500/socket-connect.html',
+      'https://localhost:5500',
+      'https:127.0.0.1:5500',
+    ],
+    credentials: true,
   },
+  transports: ['websocket', 'polling'],
 })
 @UseGuards(JwtWsGuard)
 export class WebRtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -25,12 +34,22 @@ export class WebRtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  handleConnection(client: Socket) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  handleConnection(_client: Socket) {
     // console.log(`Client connected for RTC : ${client.id}`);
   }
 
-  handleDisconnect(client: Socket) {
-    // console.log(`Client disconnected for RTC: ${client.id}`);
+  handleDisconnect(client: AuthenticatedSocket) {
+    const userId = client.data.user?.id;
+    const roomId = client.rooms
+      ? Array.from(client.rooms).find((r) => r !== client.id)
+      : null;
+
+    if (roomId && userId) {
+      console.log(`User ${userId} disconnected from video room ${roomId}`);
+      // Notify other users in the room
+      client.to(roomId).emit('user-disconnected', userId);
+    }
   }
 
   @SubscribeMessage('join-video-room')
@@ -75,8 +94,33 @@ export class WebRtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     console.log(`User ${currentUserId} (${client.id}) joined room ${roomId}`);
 
+    // Notify the joining user about their partner
     client.emit('chatting-partner', { chatPartner, currentUserId, username });
-    console.log('Emitted chatting-partner event');
+    console.log('Emitted chatting-partner event to', currentUserId);
+
+    // If there's a partner already in the room, notify them that someone joined
+    if (chatPartner) {
+      // Get all sockets in the room and notify the partner
+      const socketsInRoom = await this.server.in(roomId).fetchSockets();
+      socketsInRoom.forEach((socket) => {
+        const socketUserId = (socket as unknown as AuthenticatedSocket).data
+          .user?.id;
+        if (socketUserId === chatPartner && socketUserId !== currentUserId) {
+          // Notify the existing user that someone joined
+          this.server.to(socket.id).emit('user-joined', currentUserId);
+          // Also re-send chatting-partner to update their state
+          this.server.to(socket.id).emit('chatting-partner', {
+            chatPartner: currentUserId,
+            currentUserId: socketUserId,
+            username: (socket as unknown as AuthenticatedSocket).data.user
+              ?.email,
+          });
+          console.log(
+            `Notified user ${socketUserId} that ${currentUserId} joined`,
+          );
+        }
+      });
+    }
   }
 
   @SubscribeMessage('leave-video-room')
@@ -144,11 +188,18 @@ export class WebRtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { roomId: string; candidate: RTCIceCandidateInit },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    console.log(`ICE candidate from ${client.id} in room ${data.roomId}`);
+    const senderId = client.data.user?.id;
+    console.log(
+      `ICE candidate from ${senderId} (${client.id}) in room ${data.roomId}`,
+    );
 
+    // Broadcast to room EXCEPT the sender (client.to excludes sender)
     client.to(data.roomId).emit('ice-candidate', {
-      sender: client.data.user?.id,
+      sender: senderId,
       candidate: data.candidate,
     });
+    console.log(
+      `ICE candidate broadcasted to room ${data.roomId} (excluding sender ${senderId})`,
+    );
   }
 }
