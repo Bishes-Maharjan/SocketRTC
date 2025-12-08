@@ -339,7 +339,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
           <div className="relative w-10 h-10 rounded-full overflow-hidden">
             {chat.members.image ? (
               <Image
-                src={getImage(chat.members.provider, chat.members.image)}
+                src={getImage(chat.members.image)}
                 alt={chat.members.fullName}
                 fill
                 className="object-cover"

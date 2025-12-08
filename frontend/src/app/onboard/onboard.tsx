@@ -1,6 +1,7 @@
 "use client";
 import { COUNTRIES, LANGUAGES } from "@/constants/locations";
 import { axiosInstance } from "@/lib/apis/axios";
+import { getImage } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import {
@@ -157,9 +158,8 @@ const OnboardingForm = ({
     learningLanguage: authUser?.learningLanguage || "",
     location: authUser?.location || "",
     image:
-      authUser?.provider == "google"
-        ? authUser?.image
-        : `${process.env.NEXT_PUBLIC_API_URL}uploads/avatar.jpg`,
+    authUser?.image
+        || `/uploads/avatar.jpg`,
   }));
 
   const [errors, setErrors] = useState({
@@ -243,7 +243,7 @@ const OnboardingForm = ({
                     fill
                     sizes="112px"
                     className="object-cover"
-                    src={formState.image}
+                    src={getImage(formState.image)}
                     alt="Profile Preview"
                   />
                 ) : (
@@ -272,7 +272,7 @@ const OnboardingForm = ({
                       setImageCount((prev) => prev + 1);
                       setFormState((prev) => ({
                         ...prev,
-                        image: res.data.url,
+                        image: `${res.data.url}`,
                       }));
                     }}
                   />

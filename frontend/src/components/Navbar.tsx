@@ -4,7 +4,7 @@ import { useAuthUser } from "@/hooks/useAuthUser";
 import { useLogout } from "@/hooks/useLogout";
 import { getNotificationCount } from "@/lib/apis/notification.api";
 import { getImage } from "@/lib/utils";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { BellIcon, LogOutIcon, ShipWheelIcon, MessageSquareIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -12,34 +12,88 @@ import { usePathname } from "next/navigation";
 import PageLoader from "./PageLoader";
 import ThemeSelector from "./ThemeSelector";
 import { unReadChatNotification } from "@/lib/apis/chat.api";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import { Message } from "@/interfaces/allInterface";
+import { useChatStore } from "@/stores/useChatStore";
 
 const Navbar = () => {
   const { user: authUser } = useAuthUser();
   const location = usePathname();
+  const { unReadCount, setUnReadCount } = useChatStore();
   const isChatPage = location?.startsWith("/chat");
-const [chatUnread, setChatUnread] = useState(0);
+
   const { data: notifications = 0 } = useQuery({
     queryKey: ["notification"],
     queryFn: getNotificationCount,
   });
 
   const { logout: logoutMutation, isPending } = useLogout();
-  const queryClient = useQueryClient();
- useEffect(() => { 
-  const fetchChatUnread = async () => {
-const count = await unReadChatNotification();
- setChatUnread(count);
- }
- fetchChatUnread();
- }, [isPending]);
+
+  const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    if (!authUser?._id) return;
+
+    // Initialize socket only once
+    if (!socketRef.current) {
+      socketRef.current = io("http://localhost:3001", {
+        withCredentials: true,
+        transports: ["websocket", "polling"],
+      });
+    }
+
+    const socket = socketRef.current;
+
+    // Initialize unread count from API
+    const fetchInitialUnreadCount = async () => {
+      try {
+        const count = await unReadChatNotification();
+        // Use the store method that SETS the count, not increments it
+        useChatStore.setState({ unReadCount: count });
+      } catch (error) {
+        console.error('Failed to fetch unread count:', error);
+      }
+    };
+    
+    fetchInitialUnreadCount();
+
+    // Listen for incoming messages
+    const handleReceiveMessage = (data: { message: Message; roomId: string }) => {
+      const { message } = data;
+      
+      // Only increment if message is unread AND sent TO current user (not BY)
+      if (!message.isRead && message.to === authUser._id) {
+        // This increments by 1
+        setUnReadCount(1);
+      }
+    };
+
+    socket.on('receive-message', handleReceiveMessage);
+
+    return () => {
+      socket.off('receive-message', handleReceiveMessage);
+      // Don't disconnect socket on cleanup, only when component unmounts completely
+    };
+  }, [authUser?._id, setUnReadCount]);
+
+  // Cleanup socket on unmount
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, []);
+
   if (isPending) return <PageLoader />;
+  
   return (
     <nav className="sticky top-0 z-50 bg-base-100/80 backdrop-blur-md border-b border-base-200">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 w-full">
-          {/* Logo Section - Always visible on mobile, hidden on lg screens ONLY when sidebar is present (non-chat pages) */}
+          {/* Logo Section */}
           <div className="flex-shrink-0">
             <Link
               href="/"
@@ -65,9 +119,9 @@ const count = await unReadChatNotification();
             {!isChatPage && (
               <Link href="/chat" className="flex-shrink-0">
                 <div className="indicator">
-                  {chatUnread > 0 && (
+                  {unReadCount > 0 && (
                     <span className="indicator-item badge badge-success badge-xs">
-                      {chatUnread}
+                      {unReadCount}
                     </span>
                   )}
                   <button className="btn btn-ghost btn-circle btn-sm sm:btn-md hover:bg-base-200 transition-colors" title="Chats">
@@ -100,7 +154,7 @@ const count = await unReadChatNotification();
               <div className="avatar flex-shrink-0">
                 <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full ring-2 ring-base-300 hover:ring-primary transition-all duration-200">
                   <Image
-                    src={getImage(authUser.provider, authUser.image)}
+                    src={getImage(authUser.image)}
                     alt="User Avatar"
                     width={36}
                     height={36}

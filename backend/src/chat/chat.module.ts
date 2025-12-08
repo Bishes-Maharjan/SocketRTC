@@ -10,6 +10,7 @@ import { ChatService } from './chat.service';
 import { ChatGateway } from './gateways/chat.gateway';
 import { WebRtcGateway } from './gateways/video.gateway';
 import { Chat, ChatSchema } from './model/chat.model';
+import { Message, MessageSchema } from 'src/message/models/message.model';
 
 @Module({
   imports: [
@@ -17,6 +18,10 @@ import { Chat, ChatSchema } from './model/chat.model';
       {
         name: Chat.name,
         schema: ChatSchema,
+      },
+      {
+        name: Message.name,
+        schema: MessageSchema,
       },
     ]),
     MessageModule,

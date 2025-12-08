@@ -61,7 +61,7 @@ const Sidebar = () => {
                 <Image
                   fill
                   sizes="80px"
-                  src={getImage(authUser.provider, authUser.image)}
+                  src={getImage(authUser.image)}
                   alt="User Avatar"
                 />
               )}

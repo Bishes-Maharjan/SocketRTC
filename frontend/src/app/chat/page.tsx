@@ -32,7 +32,6 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     addMessage,
     updateChatLastMessage,
     updateChatUnreadCount,
-    updateChat,
     setTyping,
     clearTyping,
     setLoadingChats,
@@ -44,7 +43,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     if (!user?._id) return;
 
     setLoadingChats(true);
-    getAllChats({ limit: 20, page: 1 })
+    getAllChats({ limit: 20, page: 1 }) // server side func, loading chat window with latest msg and unread count for initial load
       .then((response) => {
         const { chats: fetchedChats, hasMore } = response.data;
         setChats(fetchedChats, hasMore, 1);
@@ -103,15 +102,17 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       // - Don't increment if message is already read (user is viewing the chat)
       // - Increment if message is not from current user and not read
       const isFromCurrentUser = newMsg.sender === user?._id;
-      const isCurrentlyViewingAfterAdd = selectedChatRef.current?._id === data.roomId;
       
-      if (!isFromCurrentUser && !newMsg.isRead && !isCurrentlyViewingAfterAdd) {
-        // Get current unread count and increment
+      if (!isFromCurrentUser && !newMsg.isRead) {
+        // Message is FOR us and we haven't read it
         const chat = getChat(data.roomId);
         const currentUnread = chat?.unreadCount || 0;
         updateChatUnreadCount(data.roomId, currentUnread + 1);
-      } else if (isFromCurrentUser || isCurrentlyViewingAfterAdd) {
-        // Reset unread count if viewing or if it's our own message
+      } else if (isFromCurrentUser) {
+        // We sent it, so no unread messages for us in this chat
+        updateChatUnreadCount(data.roomId, 0);
+      } else if (newMsg.isRead && isCurrentlyViewing) {
+        // We read it while viewing
         updateChatUnreadCount(data.roomId, 0);
       }
     };
@@ -292,8 +293,10 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
   
   const isChatTyping = (roomId: string) => {
     const typingSet = typingUsers[roomId];
-    if (!typingSet || typingSet.size === 0) return false;
-    return Array.from(typingSet).some((userId) => userId !== user?._id);
+    const isTyping = typingSet && typingSet.size > 0
+    ? Array.from(typingSet).some((userId) => userId !== user?._id)
+    : false;
+    return isTyping;
   };
 
   return (

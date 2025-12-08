@@ -11,7 +11,7 @@ interface MessagePage {
 interface ChatStore {
   // Messages by roomId - using pages for pagination
   messages: Record<string, MessagePage[]>;
-  
+  unReadCount: number;
   // Chats list
   chats: ChatRoom[];
   chatsHasMore: boolean;
@@ -39,6 +39,7 @@ interface ChatStore {
   updateChatLastMessage: (chatId: string, message: Message) => void;
   updateChatUnreadCount: (chatId: string, unreadCount: number) => void;
   setLoadingChats: (loading: boolean) => void;
+  setUnReadCount: (unReadCount: number) => void;
   
   // Actions - Typing
   setTyping: (roomId: string, userId: string, isTyping: boolean) => void;
@@ -58,6 +59,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // Initial state
   messages: {},
   chats: [],
+  unReadCount: 0,
   chatsHasMore: false,
   chatsPage: 1,
   typingUsers: {},
@@ -274,6 +276,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         chats: updatedChats,
       };
     });
+  },
+
+  setUnReadCount: (unReadCount: number) => {
+    set((state) => ({ unReadCount: state.unReadCount + unReadCount }));
   },
 
   setLoadingMessages: (roomId, loading) => {

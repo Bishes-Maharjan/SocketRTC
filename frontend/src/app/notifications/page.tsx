@@ -162,7 +162,6 @@ const NotificationsPage = () => {
                                 sizes="80px"
                                 fill
                                 src={getImage(
-                                  request.sender.provider,
                                   request.sender.image
                                 )}
                                 alt={request.sender.fullName}
@@ -234,12 +233,9 @@ const NotificationsPage = () => {
                           <div className="avatar mt-1 size-10 rounded-full">
                             {notification.receiver.image && (
                               <Image
-                                fill
                                 sizes="80px"
-                                src={getImage(
-                                  notification.receiver.provider,
-                                  notification.receiver.image
-                                )}
+                                fill
+                                src={getImage(notification.receiver.image)}
                                 alt={notification.receiver.fullName}
                               />
                             )}
@@ -293,7 +289,7 @@ const NotificationsPage = () => {
                                 fill
                                 sizes="80px"
                                 src={getImage(
-                                  notification.receiver.provider,
+
                                   notification.receiver.image
                                 )}
                                 alt={notification.receiver.fullName}

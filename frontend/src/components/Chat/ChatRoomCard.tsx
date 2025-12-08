@@ -29,7 +29,7 @@ export function ChatRoomCard({
         <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
           {chat.members.image ? (
             <Image
-              src={getImage(chat.members.provider, chat.members.image)}
+              src={getImage( chat.members.image)}
               alt={chat.members.fullName}
               fill
               className="object-cover"

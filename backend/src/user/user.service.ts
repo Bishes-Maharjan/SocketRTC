@@ -73,6 +73,7 @@ export class UserService {
       throw new BadRequestException('Already a friend');
 
     const requestExist = await this.frModel.find({
+      status: 'pending',
       $or: [
         { sender, receiver },
         { sender: receiver, receiver: sender },
@@ -80,7 +81,9 @@ export class UserService {
     });
 
     if (requestExist.length > 0) {
-      return { message: 'A friend request already exist', requestExist };
+      return {
+        message: 'A friend request already exist',
+      };
     }
 
     const friendRequest = new this.frModel({

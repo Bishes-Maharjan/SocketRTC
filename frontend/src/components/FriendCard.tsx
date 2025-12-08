@@ -20,7 +20,7 @@ const FriendCard = ({ friend }: { friend: Friend }) => {
             <Image
               fill
               sizes="80px"
-              src={getImage(friend.provider, friend.image)}
+              src={getImage( friend.image)}
               alt={friend.fullName}
             />
           </div>

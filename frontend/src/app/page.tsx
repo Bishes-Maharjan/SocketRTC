@@ -149,7 +149,7 @@ const HomePage = () => {
                           <Image
                             fill
                             sizes="80px"
-                            src={getImage(user.provider, user.image)}
+                            src={getImage(user.image)}
                             alt={user.fullName}
                           />
                         </div>
