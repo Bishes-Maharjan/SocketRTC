@@ -562,142 +562,214 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     };
   }, []);
 
+  // State for debug console visibility
+  const [showDebug, setShowDebug] = useState(false);
+
   return (
-    <div className="min-h-screen bg-base-200 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-center text-base-content">🎥 Video Call</h1>
+    <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col">
+      {/* Main Video Area */}
+      <div className="flex-1 relative overflow-hidden">
+        {isInCall ? (
+          <>
+            {/* Remote Video - Full Screen */}
+            <div className="absolute inset-0">
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className={`w-full h-full object-cover transition-opacity duration-500 ${waitingForRemote ? 'opacity-0' : 'opacity-100'}`}
+              />
+              
+              {/* Waiting Overlay */}
+              {waitingForRemote && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+                  <div className="text-center">
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center mx-auto mb-6 animate-pulse">
+                      <svg className="w-16 h-16 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div className="flex items-center justify-center gap-3 mb-4">
+                      <span className="loading loading-dots loading-lg text-primary"></span>
+                    </div>
+                    <p className="text-white/70 text-lg font-medium">
+                      {status.includes('Waiting') ? 'Waiting for participant...' : status}
+                    </p>
+                    <p className="text-white/40 text-sm mt-2">Make sure your partner has joined the call</p>
+                  </div>
+                </div>
+              )}
 
-        {/* Status Card */}
-        <div className="card bg-base-100 shadow-xl mb-6">
-          <div className="card-body p-4 text-center">
-            <div className="text-lg font-semibold text-base-content">{status}</div>
-            {userName && <div className="text-sm text-base-content/60 mt-1">User: {userName}</div>}
-            {isConnected && (
-              <div className="badge badge-success gap-2 mt-2">
-                <span className="w-2 h-2 bg-success-content rounded-full animate-pulse"></span>
-                Connected
+              {/* Connected Badge */}
+              {!waitingForRemote && (
+                <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/40 backdrop-blur-sm rounded-full px-4 py-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  <span className="text-white text-sm font-medium">Connected</span>
+                </div>
+              )}
+            </div>
+
+            {/* Local Video - Picture in Picture */}
+            <div className="absolute bottom-24 right-4 w-48 md:w-64 aspect-video rounded-xl overflow-hidden shadow-2xl border-2 border-white/10 bg-gray-900 hover:scale-105 transition-transform cursor-move z-10">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+                style={{ transform: 'scaleX(-1)' }}
+              />
+              {/* Muted indicator */}
+              {isAudioMuted && (
+                <div className="absolute bottom-2 right-2 bg-red-500 rounded-full p-1.5">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+              {/* Video off indicator */}
+              {isVideoOff && (
+                <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-white text-xl font-semibold">
+                    {userName?.charAt(0).toUpperCase() || 'Y'}
+                  </div>
+                </div>
+              )}
+              <div className="absolute bottom-2 left-2 text-white text-xs bg-black/50 rounded px-2 py-0.5">
+                You
               </div>
-            )}
+            </div>
+          </>
+        ) : (
+          /* Loading State */
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <span className="loading loading-spinner loading-lg text-primary"></span>
+              <p className="text-white/70 mt-4">{status}</p>
+            </div>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Controls */}
-        {isInCall && (
-          <div className="flex flex-wrap justify-center gap-3 mb-6">
+      {/* Bottom Controls Bar */}
+      {isInCall && (
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-16 pb-6">
+          <div className="flex items-center justify-center gap-4">
+            {/* Mute Button */}
             <button
               onClick={toggleMute}
-              className={`btn gap-2 ${isAudioMuted ? 'btn-error' : 'btn-ghost'}`}
+              className={`group relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                isAudioMuted 
+                  ? 'bg-red-500 hover:bg-red-600' 
+                  : 'bg-white/10 hover:bg-white/20 backdrop-blur-sm'
+              }`}
+              title={isAudioMuted ? 'Unmute' : 'Mute'}
             >
-              {isAudioMuted ? '🔇' : '🎤'}
-              {isAudioMuted ? 'Unmute' : 'Mute'}
+              {isAudioMuted ? (
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                </svg>
+              )}
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white/60 text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                {isAudioMuted ? 'Unmute' : 'Mute'}
+              </span>
             </button>
+
+            {/* Video Toggle Button */}
             <button
               onClick={toggleVideo}
-              className={`btn gap-2 ${isVideoOff ? 'btn-error' : 'btn-ghost'}`}
+              className={`group relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                isVideoOff 
+                  ? 'bg-red-500 hover:bg-red-600' 
+                  : 'bg-white/10 hover:bg-white/20 backdrop-blur-sm'
+              }`}
+              title={isVideoOff ? 'Turn on camera' : 'Turn off camera'}
             >
-              {isVideoOff ? '📷' : '📹'}
-              {isVideoOff ? 'Show' : 'Hide'}
+              {isVideoOff ? (
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" />
+                  <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                </svg>
+              )}
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white/60 text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                {isVideoOff ? 'Start video' : 'Stop video'}
+              </span>
             </button>
-            <button onClick={leaveRoom} className="btn btn-error gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+
+            {/* End Call Button */}
+            <button
+              onClick={leaveRoom}
+              className="group relative w-16 h-14 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-all duration-200"
+              title="Leave call"
+            >
+              <svg className="w-7 h-7 text-white rotate-[135deg]" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
               </svg>
-              Leave
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-white/60 text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                Leave
+              </span>
+            </button>
+
+            {/* Debug Toggle */}
+            <button
+              onClick={() => setShowDebug(!showDebug)}
+              className={`group relative w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 ${
+                showDebug ? 'bg-primary' : 'bg-white/10 hover:bg-white/20'
+              } backdrop-blur-sm ml-4`}
+              title="Toggle debug console"
+            >
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
             </button>
           </div>
-        )}
 
-        {/* Video Container */}
-        {isInCall && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {/* Local Video */}
-            <div className="card bg-base-300 shadow-xl overflow-hidden">
-              <div className="relative aspect-video bg-base-300">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                  style={{ transform: 'scaleX(-1)' }}
-                />
-                <div className="absolute bottom-3 left-3 badge badge-neutral badge-lg">
-                  You (Local)
-                </div>
-                {localStreamRef.current && (
-                  <div className="absolute top-3 left-3 badge badge-success gap-1">
-                    <span className="w-2 h-2 bg-success-content rounded-full animate-pulse"></span>
-                    Live
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Remote Video */}
-            <div className="card bg-base-300 shadow-xl overflow-hidden">
-              <div className="relative aspect-video bg-base-300">
-                {/* Always render the video element so the ref is valid */}
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className={`w-full h-full object-cover ${waitingForRemote ? 'opacity-0' : 'opacity-100'}`}
-                />
-                
-                {/* Overlay for waiting state */}
-                {waitingForRemote && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-base-300">
-                    <div className="text-center">
-                      <span className="loading loading-spinner loading-lg text-primary"></span>
-                      <div className="mt-4 text-base-content/70 font-semibold">
-                        {status.includes('Waiting') ? status : 'Connecting...'}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Badges - only show when connected */}
-                {!waitingForRemote && (
-                  <>
-                    <div className="absolute bottom-3 left-3 badge badge-neutral badge-lg">
-                      Remote User
-                    </div>
-                    <div className="absolute top-3 left-3 badge badge-success gap-1">
-                      <span className="w-2 h-2 bg-success-content rounded-full animate-pulse"></span>
-                      Live
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Debug Console */}
-        <div className="card bg-base-100 shadow-xl">
-          <div className="card-body p-4">
-            <h2 className="card-title text-base-content">Debug Console</h2>
-            <div className="bg-base-300 rounded-lg p-3 h-64 overflow-y-auto font-mono text-xs space-y-1">
-              {logs.map((log, index) => (
-                <div
-                  key={index}
-                  className={`${
-                    log.type === 'error'
-                      ? 'text-error'
-                      : log.type === 'success'
-                      ? 'text-success'
-                      : log.type === 'warning'
-                      ? 'text-warning'
-                      : 'text-base-content/70'
-                  }`}
-                >
-                  [{log.timestamp.toLocaleTimeString()}] {log.message}
-                </div>
-              ))}
-            </div>
+          {/* Room ID */}
+          <div className="text-center mt-4">
+            <span className="text-white/40 text-xs">Room: {roomId.slice(0, 8)}...</span>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Debug Console - Slide up panel */}
+      {showDebug && (
+        <div className="absolute bottom-32 left-4 right-4 max-w-2xl mx-auto bg-gray-900/95 backdrop-blur-sm rounded-xl border border-white/10 shadow-2xl overflow-hidden z-20">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
+            <h3 className="text-white/80 text-sm font-medium">Debug Console</h3>
+            <button onClick={() => setShowDebug(false)} className="text-white/40 hover:text-white/80">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="h-48 overflow-y-auto p-3 font-mono text-xs space-y-0.5">
+            {logs.map((log, index) => (
+              <div
+                key={index}
+                className={`${
+                  log.type === 'error'
+                    ? 'text-red-400'
+                    : log.type === 'success'
+                    ? 'text-green-400'
+                    : log.type === 'warning'
+                    ? 'text-yellow-400'
+                    : 'text-gray-400'
+                }`}
+              >
+                <span className="text-gray-600">[{log.timestamp.toLocaleTimeString()}]</span> {log.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
