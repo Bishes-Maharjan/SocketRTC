@@ -1,17 +1,16 @@
 import { useAuth } from "@/auth/AuthProvider";
+import { useSocket } from "@/hooks/useSocket";
 import { ChatRoom, Message } from "@/interfaces/allInterface";
 import { getRoomMessageWithItsUnreadCount } from "@/lib/apis/chat.api";
 import { formatMessageTime, getImage } from "@/lib/utils";
 import { useChatStore } from "@/stores/useChatStore";
+import { LoaderIcon, Video } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { io, Socket } from "socket.io-client";
+import toast from "react-hot-toast";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
-import { LoaderIcon, Video } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { SocketProvider, useSocket } from "@/hooks/useSocket";
-import toast from "react-hot-toast";
 
 export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const { user } = useAuth();
@@ -92,9 +91,8 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     if(!socket || !isConnected || !chat._id) return ;
     const newSocket = socket
 
-
+    // Join room - server will mark messages as read and emit 'messages-marked-read' event
     joinRoom(chat._id); 
-    updateChatUnreadCount(chat._id, 0)
 
     const handleReceiveMessage = (data: any) => {
       // Only handle messages for this specific chat room
