@@ -310,11 +310,12 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     const toUserId = chat.members._id;
     const fromUserId = user._id;
 
-    // Emit call event
+    // Emit call event with caller name for the modal
     socket.emit("call", {
       roomId: chat._id,
       to: toUserId,
       from: fromUserId,
+      callerName: user.fullName || 'Someone',
     });
 
     // Navigate to video call page with initiator flag

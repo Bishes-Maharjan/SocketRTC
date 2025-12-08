@@ -129,59 +129,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       }
     };
 
-    const handleCalling = (data: any) => {
-      // Check if the call is for us
-      if (data.to === user?._id) {
-        const chatPartner = chats.find((c: ChatRoom) => c._id === data.roomId);
-        const callerName = chatPartner?.members.fullName || "Someone";
-
-        // Show toast with pickup and reject buttons
-        toast(
-          (t) => (
-            <div className="bg-base-100 p-4 rounded-lg shadow-xl border border-base-300">
-              <p className="font-semibold text-base-content mb-3">
-                📞 {callerName} is calling you
-              </p>
-
-              <div className="flex gap-2">
-                <button
-                  className="btn btn-success btn-sm flex-1"
-                  onClick={() => {
-                    toast.dismiss(t.id);
-                    router.push(`/call/${data.roomId}`);
-                  }}
-                >
-                  Pick Up
-                </button>
-
-                <button
-                  className="btn btn-error btn-sm flex-1"
-                  onClick={() => {
-                    toast.dismiss(t.id);
-                    globalSocketRef.current?.emit("rejectCall", {
-                      to: data.from,
-                      from: user?._id,
-                      roomId: data.roomId,
-                    });
-                  }}
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          ),
-          {
-            duration: 30000,
-            position: 'top-center',
-            style: {
-              background: 'transparent',
-              boxShadow: 'none',
-              padding: 0,
-            },
-          }
-        );
-      }
-    };
+    // Note: 'calling' event is now handled globally in root-client-layout.tsx
 
     const handleRejectCall = (data: any) => {
       // Check if the rejection is for us (we are the caller)
@@ -189,8 +137,6 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
         toast.error("Call denied", {
           position: "top-center",
         });
-        // Leave the video call room if we're on the call page
-        // The VideoPage component will handle cleanup
       }
     };
 
@@ -198,7 +144,6 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     socket.on("messages-marked-read", handleMessagesMarkedRead);
     socket.on("user-typing", handleUserTyping);
     socket.on("user-stopped-typing", handleUserStoppedTyping);
-    socket.on("calling", handleCalling);
     socket.on("rejectCall", handleRejectCall);
 
     return () => {
@@ -206,7 +151,6 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       socket.off("messages-marked-read", handleMessagesMarkedRead);
       socket.off("user-typing", handleUserTyping);
       socket.off("user-stopped-typing", handleUserStoppedTyping);
-      socket.off("calling", handleCalling);
       socket.off("rejectCall", handleRejectCall);
       globalSocketRef.current = null;
       

@@ -389,10 +389,10 @@ export class ChatGateway
   @UseGuards(JwtWsGuard)
   @SubscribeMessage('call')
   async handleCall(
-    @MessageBody() data: { roomId: string; to: string; from: string },
+    @MessageBody() data: { roomId: string; to: string; from: string; callerName?: string },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    const { roomId, to, from } = data;
+    const { roomId, to, from, callerName } = data;
     const callerId = client.data.user?.id;
 
     if (!callerId || callerId !== from) {
@@ -411,9 +411,10 @@ export class ChatGateway
       roomId,
       to,
       from,
+      callerName: callerName || 'Someone',
     });
 
-    console.log(`Call initiated: ${from} calling ${to} in room ${roomId}`);
+    console.log(`Call initiated: ${callerName || from} calling ${to} in room ${roomId}`);
   }
 
   @UseGuards(JwtWsGuard)
