@@ -10,6 +10,7 @@ import React from "react";
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import toast, { Toaster } from "react-hot-toast";
+import { useSocket } from "@/hooks/useSocket";
 
 export default function ChatsPage({ searchParams }: { searchParams: Promise<{ chatId: string }> }) {
   const { user } = useAuth();
@@ -21,6 +22,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
   const selectedChatRef = useRef<ChatRoom | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const { socket, isConnected, joinRoom } = useSocket(); // Use shared socket
 
   // Zustand store
   const {
@@ -60,20 +62,11 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
   // This socket connects to user's personal room (automatically joined on connection)
   // It does NOT join chat rooms - only ChatWindow joins chat rooms
   useEffect(() => {
-    if (!user?._id) return;
 
-    const socket = io("http://localhost:3001", {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-    });
+    if (!socket || !user?._id || !isConnected) return;
+
 
     globalSocketRef.current = socket;
-
-    socket.on("connect", () => {
-      console.log("Global socket connected for chat list updates");
-      // User is automatically joined to their personal room on backend connection
-      // No need to join chat rooms here - only ChatWindow joins chat rooms
-    });
 
     // Handle receiving messages for any room (via user's personal room)
     const handleReceiveMessage = (data: any) => {
@@ -217,8 +210,8 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       socket.off("user-stopped-typing", handleUserStoppedTyping);
       socket.off("calling", handleCalling);
       socket.off("rejectCall", handleRejectCall);
-      socket.disconnect();
       globalSocketRef.current = null;
+      
     };
   }, [user?._id, addMessage, updateChatLastMessage, updateChatUnreadCount, setTyping, clearTyping, getChat, chats, router]);
 

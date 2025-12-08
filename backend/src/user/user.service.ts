@@ -41,14 +41,12 @@ export class UserService {
   }
   //used in frontend to render user with chatId with them which will
   async getFriendWithChatRoomId(id: string) {
-    console.log('API hit');
     const myFriends = (await this.userModel
       .findById({ _id: id })
       .select('friends')
       .populate('friends')
       .lean()) as PopulatedUser | null;
 
-    console.log('My friends', myFriends);
     if (!myFriends) throw new NotFoundException('Friends dont exist');
 
     const result = await Promise.all(
@@ -61,7 +59,7 @@ export class UserService {
       }),
     );
 
-    console.log('the result', result);
+
     return result;
   }
 

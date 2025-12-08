@@ -12,17 +12,16 @@ import { usePathname } from "next/navigation";
 import PageLoader from "./PageLoader";
 import ThemeSelector from "./ThemeSelector";
 import { unReadChatNotification } from "@/lib/apis/chat.api";
-import { useEffect, useRef } from "react";
-import { io, Socket } from "socket.io-client";
-import { Message } from "@/interfaces/allInterface";
+import { useEffect } from "react";
 import { useChatStore } from "@/stores/useChatStore";
+import { useSocket } from "@/hooks/useSocket";
 
 const Navbar = () => {
   const { user: authUser } = useAuthUser();
   const location = usePathname();
   const { unReadCount, setUnReadCount } = useChatStore();
   const isChatPage = location?.startsWith("/chat");
-
+  const { socket, isConnected } = useSocket();
   const { data: notifications = 0 } = useQuery({
     queryKey: ["notification"],
     queryFn: getNotificationCount,
@@ -30,26 +29,22 @@ const Navbar = () => {
 
   const { logout: logoutMutation, isPending } = useLogout();
 
-  const socketRef = useRef<Socket | null>(null);
-
   useEffect(() => {
-    if (!authUser?._id) return;
-
-    // Initialize socket only once
-    if (!socketRef.current) {
-      socketRef.current = io("http://localhost:3001", {
-        withCredentials: true,
-        transports: ["websocket", "polling"],
-      });
+    console.log("Navbar useEffect - socket:", socket, "authUser:", authUser?._id, "isConnected:", isConnected);
+    
+    // ✅ Wait for BOTH socket to exist AND connection to be established
+    if (!socket || !authUser?._id || !isConnected) {
+      console.log("Waiting for socket connection...");
+      return;
     }
 
-    const socket = socketRef.current;
+    console.log("✅ Socket is ready! Setting up listeners in Navbar");
 
-    // Initialize unread count from API
+    // Fetch initial unread count
     const fetchInitialUnreadCount = async () => {
       try {
         const count = await unReadChatNotification();
-        // Use the store method that SETS the count, not increments it
+        console.log('NAVBAR COUNT:', count);
         useChatStore.setState({ unReadCount: count });
       } catch (error) {
         console.error('Failed to fetch unread count:', error);
@@ -58,34 +53,22 @@ const Navbar = () => {
     
     fetchInitialUnreadCount();
 
-    // Listen for incoming messages
-    const handleReceiveMessage = (data: { message: Message; roomId: string }) => {
-      const { message } = data;
-      
-      // Only increment if message is unread AND sent TO current user (not BY)
-      if (!message.isRead && message.to === authUser._id) {
-        // This increments by 1
+    // Listen for incoming messages (from personal room: user:${userId})
+    const handleReceiveMessage = (data: {to: string; isRead: boolean, message: string}) => {
+      console.log('NAVBAR MESSAGE RECEIVED', data.message, data.to, data.isRead);
+      if (!data.isRead && data.to === authUser._id) {
         setUnReadCount(1);
       }
     };
 
     socket.on('receive-message', handleReceiveMessage);
 
+    // Cleanup function to remove listener
     return () => {
+      console.log("Cleaning up socket listeners in Navbar");
       socket.off('receive-message', handleReceiveMessage);
-      // Don't disconnect socket on cleanup, only when component unmounts completely
     };
-  }, [authUser?._id, setUnReadCount]);
-
-  // Cleanup socket on unmount
-  useEffect(() => {
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-    };
-  }, []);
+  }, [socket, authUser?._id, isConnected, setUnReadCount]); // ✅ Add isConnected back
 
   if (isPending) return <PageLoader />;
   

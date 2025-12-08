@@ -112,7 +112,9 @@ export class ChatGateway
       // Join user to their personal room for receiving messages without joining chat rooms
       const userRoom = `user:${userId}`;
       void client.join(userRoom);
-      console.log(`User ${userId} joined personal room: ${userRoom}`);
+      console.log(
+        `User [${userId},${user.email}] joined personal room: ${userRoom}`,
+      );
 
       console.log('User Socket', this.userSockets);
       console.log('\n===End of Handle Connection===');
@@ -137,22 +139,22 @@ export class ChatGateway
     client.disconnect();
   }
 
-  /**
-   * Check if a user is currently in a specific room
-   */
-  private isUserInRoom(userId: string, roomId: string): boolean {
-    const userSocketIds = this.userSockets.get(userId);
-    if (!userSocketIds) return false;
+  // /**
+  //  * Check if a user is currently in a specific room
+  //  */
+  // private isUserInRoom(userId: string, roomId: string): boolean {
+  //   const userSocketIds = this.userSockets.get(userId);
+  //   if (!userSocketIds) return false;
 
-    // Check if any of the user's sockets are in this room
-    for (const socketId of userSocketIds) {
-      const socketRooms = this.socketRooms.get(socketId);
-      if (socketRooms?.has(roomId)) {
-        return true;
-      }
-    }
-    return false;
-  }
+  //   // Check if any of the user's sockets are in this room
+  //   for (const socketId of userSocketIds) {
+  //     const socketRooms = this.socketRooms.get(socketId);
+  //     if (socketRooms?.has(roomId)) {
+  //       return true;
+  //     }
+  //   }
+  //   return false;
+  // }
 
   /**
    * Alternative: Use Socket.io's built-in room checking
@@ -284,11 +286,6 @@ export class ChatGateway
       roomId,
     );
 
-    console.log(`Sending message in room ${roomId}`);
-    console.log(`Sender: ${senderId}`);
-    console.log(`Recipient: ${chatPartner}`);
-    console.log(`Recipient is in room: ${recipientIsInRoom}`);
-
     // Save message with appropriate read status
     const savedMessage = await this.messageService.registerMessage(
       roomId,
@@ -308,6 +305,15 @@ export class ChatGateway
       createdAt: savedMessage.createdAt,
       updatedAt: savedMessage.updatedAt,
     };
+
+    console.log(
+      `Sending message ${message} from ${client.data.user?.email} to ${chatPartner} in room ${roomId}, \n`,
+    );
+    console.log(`Sender: ${senderId}, ${client.data.user?.email}`);
+    console.log(
+      `Recipient: ${chatPartner}, did he read ? ${savedMessage.isRead}`,
+    );
+    console.log(`Recipient is in room: ${recipientIsInRoom}`);
 
     // Emit message to everyone in the chat room (for active viewers)
     this.server.to(roomId).emit('receive-message', messageData);

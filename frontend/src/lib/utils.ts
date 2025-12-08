@@ -20,7 +20,6 @@ export const capitialize = (str: string): string =>
 
 export const getImage = (image: string): string => {
 
-  console.log( image);
   const img =
     image.includes('uploads') ? `${process.env.NEXT_PUBLIC_API_URL}${image}` : image;
 

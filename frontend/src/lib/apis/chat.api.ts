@@ -21,7 +21,6 @@ export const readMessagesForRoom = async (roomId: string) => {
 
 export const unReadChatNotification = async () => {
   const count = await axiosInstance.get("message/unread");
-  console.log('count', count.data);
   return count.data;
 };
 
@@ -39,6 +38,5 @@ export const getRoomMessageWithItsUnreadCount = async (
 
 export const getChatById = async (userId: string) => {
   const res = await axiosInstance.get(`chat/${userId}`);
-  console.log('chat', res.data);  
   return res.data;
 };

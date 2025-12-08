@@ -10,11 +10,13 @@ import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import { LoaderIcon, Video } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { SocketProvider, useSocket } from "@/hooks/useSocket";
+import toast from "react-hot-toast";
 
 export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const { user } = useAuth();
   const router = useRouter();
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const { socket, joinRoom, leaveRoom, isConnected } = useSocket(); // Use shared socket
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -87,19 +89,12 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
 
   // Socket connection
   useEffect(() => {
-    const newSocket = io("http://localhost:3001", {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-    });
+    if(!socket || !isConnected || !chat._id) return ;
+    const newSocket = socket
 
-    newSocket.on("connect", () => {
-      console.log("ChatWindow socket connected");
-      // Join active room (server will mark messages as read on join)
-      newSocket.emit("join-room", { roomId: chat._id });
 
-      // Reset unread count when joining room
-      updateChatUnreadCount(chat._id, 0);
-    });
+    joinRoom(chat._id); 
+    updateChatUnreadCount(chat._id, 0)
 
     const handleReceiveMessage = (data: any) => {
       // Only handle messages for this specific chat room
@@ -154,7 +149,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       // Check if the rejection is for us (we are the caller)
       if (data.to === user?._id && data.roomId === chat._id) {
         // Call was rejected by the recipient
-        console.log("Call rejected by recipient");
+        toast.error("Call rejected");
       }
     };
 
@@ -164,21 +159,18 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     newSocket.on("user-stopped-typing", handleUserStoppedTyping);
     newSocket.on("rejectCall", handleRejectCall);
 
-    setSocket(newSocket);
-
     return () => {
       newSocket.off("receive-message", handleReceiveMessage);
       newSocket.off("messages-marked-read", handleMessagesMarkedRead);
       newSocket.off("user-typing", handleUserTyping);
       newSocket.off("user-stopped-typing", handleUserStoppedTyping);
       newSocket.off("rejectCall", handleRejectCall);
-      newSocket.emit("leave-room", { roomId: chat._id });
-      newSocket.disconnect();
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
+      leaveRoom(chat._id);
     };
-      }, [chat._id, user?._id, updateChatLastMessage, updateChatUnreadCount, markMessagesAsRead, setTyping, clearTyping, addMessage]);
+      }, [chat._id, user?._id, updateChatLastMessage, updateChatUnreadCount, markMessagesAsRead, setTyping, clearTyping, addMessage, isConnected,socket ]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
