@@ -44,7 +44,6 @@ const Navbar = () => {
     const fetchInitialUnreadCount = async () => {
       try {
         const count = await unReadChatNotification();
-        console.log('NAVBAR COUNT:', count);
         useChatStore.setState({ unReadCount: count });
       } catch (error) {
         console.error('Failed to fetch unread count:', error);

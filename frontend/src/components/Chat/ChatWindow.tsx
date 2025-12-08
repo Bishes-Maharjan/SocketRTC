@@ -317,8 +317,8 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       from: fromUserId,
     });
 
-    // Navigate to video call page
-    router.push(`/call/${chat._id}`);
+    // Navigate to video call page with initiator flag
+    router.push(`/call/${chat._id}?initiator=true&recipient=${encodeURIComponent(chat.members.fullName)}`);
   };
 
   return (

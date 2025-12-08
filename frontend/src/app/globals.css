@@ -5,3 +5,27 @@
 @plugin "daisyui" {
   themes: all;
 }
+/* Remove react-hot-toast default white padding + radius */
+[data-sonner-toast], .react-hot-toast, .react-hot-toast > div {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Fix react-hot-toast container */
+.react-hot-toast > div {
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+/* Remove hot-toast container padding */
+.react-hot-toast {
+  padding: 0 !important;
+}
+.react-hot-toast > div {
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}

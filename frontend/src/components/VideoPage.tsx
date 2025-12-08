@@ -24,6 +24,7 @@ interface LogEntry {
 export default function VideoCallPage({ roomId }: { roomId: string }) {
   const { user } = useAuth();
   const router = useRouter();
+  
   // Refs
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -31,32 +32,44 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
   const remotePeerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const remotePeerIdRef = useRef<string | null>(null);
-  const hasSetLocalVideo = useRef<boolean>(false);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidate[]>([]);
   const chatSocketRef = useRef<Socket | null>(null);
+  const isInitializingRef = useRef(false);
 
   // State
   const [isConnected, setIsConnected] = useState(false);
   const [isInCall, setIsInCall] = useState(false);
-  const [status, setStatus] = useState('Not connected');
+  const [status, setStatus] = useState('Initializing...');
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
-  const [waitingForRemote, setWaitingForRemote] = useState(false);
+  const [waitingForRemote, setWaitingForRemote] = useState(true);
 
-  // Logger function
+  // Logger function - limit logs to prevent memory issues
   const log = (message: string, type: LogType = 'info') => {
     console.log(`[${type.toUpperCase()}]`, message);
-    setLogs((prev) => [...prev, { timestamp: new Date(), message, type }]);
+    setLogs((prev) => {
+      const newLogs = [...prev, { timestamp: new Date(), message, type }];
+      // Keep only last 100 logs
+      return newLogs.slice(-100);
+    });
   };
 
   // Initialize call
   const startCall = async () => {
+    if (isInitializingRef.current) {
+      log('Already initializing, skipping...', 'warning');
+      return;
+    }
+
+    isInitializingRef.current = true;
+
     try {
       log('Requesting media devices...', 'info');
 
-      // Get local media stream with echo cancellation
+      // Get local media stream
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
@@ -70,54 +83,15 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       });
 
       localStreamRef.current = stream;
+      log(`✓ Got local stream with ${stream.getTracks().length} tracks`, 'success');
 
-      log(
-        `✓ Got local stream with ${stream.getTracks().length} tracks`,
-        'success'
-      );
-      stream.getTracks().forEach((track) => {
-        log(`  - ${track.kind} track: ${track.label}`, 'info');
-      });
-
-      // IMMEDIATELY show the video container and set state
+      // Set state to show video container
       setIsInCall(true);
-      
-      // Wait for next tick to ensure video element is rendered
-      await new Promise(resolve => setTimeout(resolve, 100));
+      setStatus('Connecting to room...');
 
-      // Now attach the stream
-      if (localVideoRef.current && !hasSetLocalVideo.current) {
-        log('Attaching local stream to video element...', 'info');
-        localVideoRef.current.srcObject = stream;
-        hasSetLocalVideo.current = true;
-        
-        // Add event listeners
-        localVideoRef.current.onloadedmetadata = () => {
-          log('✓ Local video metadata loaded', 'success');
-        };
-
-        localVideoRef.current.onplay = () => {
-          log('✓ Local video is playing', 'success');
-        };
-
-        localVideoRef.current.onerror = (e) => {
-          log(`✗ Local video error: ${e}`, 'error');
-        };
-
-        // Explicitly play
-        try {
-          await localVideoRef.current.play();
-          log('✓ Local video play() succeeded', 'success');
-        } catch (e) {
-          log(`✗ Local video play() failed: ${e}`, 'error');
-        }
-      } else if (!localVideoRef.current) {
-        log('✗ Local video ref is null!', 'error');
-      }
-
-      // Initialize socket AFTER setting up video
+      // Initialize socket connection
       log('Connecting to signaling server...', 'info');
-      const socket = io('http://localhost:3001', {
+      const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
         withCredentials: true,
         transports: ['websocket', 'polling'],
       });
@@ -125,11 +99,34 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       socketRef.current = socket;
       setupSocketListeners(socket);
       
-    } catch (error) {
-      log(`✗ Error accessing media devices: ${error}`, 'error');
-      alert('Could not access camera/microphone. Please check permissions.');
+    } catch (error: any) {
+      log(`✗ Error accessing media devices: ${error.message}`, 'error');
+      toast.error('Could not access camera/microphone. Please check permissions.');
+      setStatus('Failed to access media devices');
+      setIsInCall(false);
+      isInitializingRef.current = false;
     }
   };
+
+  // Attach local stream to video element when it's ready
+  useEffect(() => {
+    if (localStreamRef.current && localVideoRef.current && isInCall) {
+      log('Attaching local stream to video element...', 'info');
+      localVideoRef.current.srcObject = localStreamRef.current;
+      
+      localVideoRef.current.onloadedmetadata = () => {
+        log('✓ Local video metadata loaded', 'success');
+      };
+
+      localVideoRef.current.onplay = () => {
+        log('✓ Local video playing', 'success');
+      };
+
+      localVideoRef.current.play().catch(e => {
+        log(`✗ Local video play() failed: ${e.message}`, 'error');
+      });
+    }
+  }, [isInCall]);
 
   // Setup socket event listeners
   const setupSocketListeners = (socket: Socket) => {
@@ -138,22 +135,22 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       setIsConnected(true);
 
       // Join room
-      log(`Joining room: ${roomId}`, 'info');
+      log(`Joining video room: ${roomId}`, 'info');
       socket.emit('join-video-room', roomId);
     });
 
     socket.on('disconnect', () => {
       log('✗ Disconnected from signaling server', 'error');
       setIsConnected(false);
-      setStatus('Connection lost. Please rejoin.');
+      setStatus('Connection lost');
     });
 
     socket.on('connect_error', (error) => {
       log(`✗ Connection error: ${error.message}`, 'error');
     });
 
-    socket.on('error', (error) => {
-      log(`✗ Socket error: ${JSON.stringify(error)}`, 'error');
+    socket.on('error', (error: any) => {
+      log(`✗ Socket error: ${error.message || JSON.stringify(error)}`, 'error');
     });
 
     socket.on('chatting-partner', async ({ chatPartner, currentUserId, username }) => {
@@ -162,23 +159,26 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
 
       log('✓ Joined room successfully', 'success');
       log(`Your userId: ${currentUserId}`, 'info');
-      log(`Your username: ${username}`, 'info');
       log(`Chat partner: ${chatPartner || 'None (waiting)'}`, 'info');
 
-      setStatus(`Connected to room as ${username}`);
+      setStatus(`Connected as ${username}`);
 
-      if (chatPartner) {
-        log(`Initiating peer connection with: ${chatPartner}`, 'info');
-        const peerConnection = await createPeerConnection(chatPartner);
-
-        // Create and send offer
-        log('Creating offer...', 'info');
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        log('✓ Local description set (offer)', 'success');
-
-        log(`Sending offer to room: ${roomId}`, 'info');
-        socket.emit('offer', { roomId, offer });
+      // Store remote peer ID even if we don't initiate yet
+      if (chatPartner && chatPartner !== currentUserId) {
+        remotePeerIdRef.current = chatPartner;
+        
+        // Determine if we're the initiator
+        const isInitiator = new URLSearchParams(window.location.search).get('initiator') === 'true';
+        
+        if (isInitiator) {
+          log(`You are the CALLER - creating offer for ${chatPartner}`, 'info');
+          // Small delay to ensure both peers are ready
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await initiateCall(chatPartner);
+        } else {
+          log(`You are the RECEIVER - waiting for offer from ${chatPartner}`, 'info');
+          setStatus('Waiting for caller to connect...');
+        }
       } else {
         log('Waiting for another user to join...', 'warning');
         setStatus('Waiting for another user...');
@@ -186,52 +186,112 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       }
     });
 
+    socket.on('user-joined', async ({ userId: joinedUserId, username: joinedUsername }) => {
+      log(`👤 User joined: ${joinedUsername} (${joinedUserId})`, 'info');
+      
+      // If we're the caller, RE-SEND the offer when receiver joins
+      const isInitiator = new URLSearchParams(window.location.search).get('initiator') === 'true';
+      
+      if (isInitiator) {
+        log(`Receiver joined - re-sending offer`, 'info');
+        remotePeerIdRef.current = joinedUserId;
+        
+        // Close existing peer connection and start fresh
+        if (remotePeerConnectionRef.current) {
+          remotePeerConnectionRef.current.close();
+          remotePeerConnectionRef.current = null;
+        }
+        pendingIceCandidatesRef.current = [];
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await initiateCall(joinedUserId);
+      }
+    });
+
     socket.on('offer', async ({ from, offer }) => {
-      log(`Received offer from: ${from}`, 'info');
+      log(`📞 Received offer from: ${from}`, 'info');
 
-      const peerConnection = await createPeerConnection(from);
+      // Check if we already have a peer connection
+      if (remotePeerConnectionRef.current) {
+        const state = remotePeerConnectionRef.current.signalingState;
+        if (state !== 'stable' && state !== 'closed') {
+          log(`⚠ Already in signaling state: ${state}, ignoring offer`, 'warning');
+          return;
+        }
+      }
 
-      log('Setting remote description (offer)...', 'info');
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-      log('✓ Remote description set (offer)', 'success');
+      try {
+        const peerConnection = await createPeerConnection(from);
 
-      log('Creating answer...', 'info');
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      log('✓ Local description set (answer)', 'success');
+        log('Setting remote description (offer)...', 'info');
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        log('✓ Remote description set', 'success');
 
-      log(`Sending answer to room: ${roomId}`, 'info');
-      socket.emit('answer', { roomId, answer });
+        // Process any pending ICE candidates
+        await processPendingIceCandidates();
+
+        log('Creating answer...', 'info');
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        log('✓ Local description set (answer)', 'success');
+
+        log('Sending answer...', 'info');
+        socket.emit('answer', { roomId, answer });
+      } catch (error: any) {
+        log(`✗ Error handling offer: ${error.message}`, 'error');
+      }
     });
 
     socket.on('answer', async ({ from, answer }) => {
-      log(`Received answer from: ${from}`, 'info');
+      log(`📞 Received answer from: ${from}`, 'info');
 
-      if (remotePeerConnectionRef.current) {
+      if (!remotePeerConnectionRef.current) {
+        log('✗ No peer connection exists', 'error');
+        return;
+      }
+
+      const state = remotePeerConnectionRef.current.signalingState;
+      if (state !== 'have-local-offer') {
+        log(`⚠ Wrong state for answer: ${state}`, 'warning');
+        return;
+      }
+
+      try {
         log('Setting remote description (answer)...', 'info');
         await remotePeerConnectionRef.current.setRemoteDescription(
           new RTCSessionDescription(answer)
         );
-        log('✓ Remote description set (answer)', 'success');
-      } else {
-        log('✗ No peer connection exists to set answer', 'error');
+        log('✓ Remote description set', 'success');
+
+        // Process any pending ICE candidates
+        await processPendingIceCandidates();
+      } catch (error: any) {
+        log(`✗ Error handling answer: ${error.message}`, 'error');
       }
     });
 
     socket.on('ice-candidate', async ({ sender, candidate }) => {
-      log(`Received ICE candidate from: ${sender}`, 'info');
+      log(`🧊 Received ICE candidate from: ${sender}`, 'info');
 
-      if (remotePeerConnectionRef.current) {
-        try {
-          await remotePeerConnectionRef.current.addIceCandidate(
-            new RTCIceCandidate(candidate)
-          );
-          log('✓ Added ICE candidate', 'success');
-        } catch (error) {
-          log(`✗ Error adding ICE candidate: ${error}`, 'error');
-        }
-      } else {
-        log('✗ No peer connection exists for ICE candidate', 'warning');
+      if (!remotePeerConnectionRef.current) {
+        log('⚠ No peer connection yet, skipping candidate', 'warning');
+        return;
+      }
+
+      // Queue candidate if remote description not set yet
+      if (!remotePeerConnectionRef.current.remoteDescription) {
+        log('⚠ No remote description yet, queuing candidate', 'warning');
+        pendingIceCandidatesRef.current.push(new RTCIceCandidate(candidate));
+        return;
+      }
+
+      try {
+        await remotePeerConnectionRef.current.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
+        log('✓ Added ICE candidate', 'success');
+      } catch (error: any) {
+        log(`✗ Error adding ICE candidate: ${error.message}`, 'error');
       }
     });
 
@@ -239,25 +299,54 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       log(`User disconnected: ${disconnectedUserId}`, 'warning');
 
       if (disconnectedUserId === remotePeerIdRef.current) {
-        if (remotePeerConnectionRef.current) {
-          remotePeerConnectionRef.current.close();
-          remotePeerConnectionRef.current = null;
-        }
-
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = null;
-        }
-
-        remotePeerIdRef.current = null;
-        setWaitingForRemote(true);
-        setStatus(`Waiting for another user in room: ${roomId}`);
+        handleRemoteDisconnect();
       }
     });
+  };
+
+  // Process pending ICE candidates after remote description is set
+  const processPendingIceCandidates = async () => {
+    if (pendingIceCandidatesRef.current.length === 0) return;
+
+    log(`Processing ${pendingIceCandidatesRef.current.length} pending ICE candidates`, 'info');
+
+    for (const candidate of pendingIceCandidatesRef.current) {
+      try {
+        await remotePeerConnectionRef.current?.addIceCandidate(candidate);
+      } catch (error: any) {
+        log(`✗ Error adding queued ICE candidate: ${error.message}`, 'error');
+      }
+    }
+
+    pendingIceCandidatesRef.current = [];
+    log('✓ Processed all pending ICE candidates', 'success');
+  };
+
+  // Initiate call (caller only)
+  const initiateCall = async (peerId: string) => {
+    try {
+      const peerConnection = await createPeerConnection(peerId);
+
+      log('Creating offer...', 'info');
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      log('✓ Local description set (offer)', 'success');
+
+      log('Sending offer...', 'info');
+      socketRef.current?.emit('offer', { roomId, offer });
+    } catch (error: any) {
+      log(`✗ Error initiating call: ${error.message}`, 'error');
+    }
   };
 
   // Create peer connection
   const createPeerConnection = async (peerId: string): Promise<RTCPeerConnection> => {
     log(`Creating peer connection with: ${peerId}`, 'info');
+
+    // Close existing connection if any
+    if (remotePeerConnectionRef.current) {
+      remotePeerConnectionRef.current.close();
+    }
 
     const peerConnection = new RTCPeerConnection(ICE_SERVERS);
     remotePeerConnectionRef.current = peerConnection;
@@ -266,7 +355,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     // Add local tracks
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
-        log(`Adding local ${track.kind} track to peer connection`, 'info');
+        log(`Adding local ${track.kind} track`, 'info');
         peerConnection.addTrack(track, localStreamRef.current!);
       });
     }
@@ -274,13 +363,13 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     // Handle ICE candidates
     peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        log(`Sending ICE candidate to room: ${roomId}`, 'info');
+        log('Sending ICE candidate', 'info');
         socketRef.current?.emit('ice-candidate', {
           roomId,
           candidate: event.candidate,
         });
       } else {
-        log('ICE gathering complete', 'success');
+        log('✓ ICE gathering complete', 'success');
       }
     };
 
@@ -289,44 +378,28 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       log(`✓ Received remote ${event.track.kind} track`, 'success');
 
       if (event.streams && event.streams[0]) {
-        log(
-          `✓ Remote stream received with ${event.streams[0].getTracks().length} tracks`,
-          'success'
-        );
+        log('✓ Setting remote stream', 'success');
         
         if (remoteVideoRef.current) {
-          // Set the remote stream
           remoteVideoRef.current.srcObject = event.streams[0];
-          
-          // IMPORTANT: Remote video should NOT be muted (we want to hear them)
-          // But make sure it's not playing local echo
           remoteVideoRef.current.muted = false;
-          
           setWaitingForRemote(false);
+          setStatus('Connected!');
         }
-        
-        setStatus('Connected with remote peer');
-      } else {
-        log('✗ No streams in track event', 'error');
       }
     };
 
     // Monitor connection state
     peerConnection.onconnectionstatechange = () => {
-      log(`Connection state: ${peerConnection.connectionState}`, 'info');
+      const state = peerConnection.connectionState;
+      log(`Connection state: ${state}`, 'info');
       
-      if (peerConnection.connectionState === 'connected') {
+      if (state === 'connected') {
         log('✓ Peer connection established!', 'success');
-        setStatus(`Connected in room: ${roomId}`);
-      } else if (
-        peerConnection.connectionState === 'failed' ||
-        peerConnection.connectionState === 'disconnected'
-      ) {
-        log(`✗ Connection ${peerConnection.connectionState}`, 'error');
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = null;
-        }
-        setWaitingForRemote(true);
+        setStatus('Connected!');
+      } else if (state === 'failed' || state === 'disconnected') {
+        log(`✗ Connection ${state}`, 'error');
+        handleRemoteDisconnect();
       }
     };
 
@@ -345,6 +418,23 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     return peerConnection;
   };
 
+  // Handle remote peer disconnect
+  const handleRemoteDisconnect = () => {
+    if (remotePeerConnectionRef.current) {
+      remotePeerConnectionRef.current.close();
+      remotePeerConnectionRef.current = null;
+    }
+
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+
+    remotePeerIdRef.current = null;
+    pendingIceCandidatesRef.current = [];
+    setWaitingForRemote(true);
+    setStatus('Remote peer disconnected');
+  };
+
   // Toggle audio
   const toggleMute = () => {
     if (localStreamRef.current) {
@@ -352,7 +442,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsAudioMuted(!audioTrack.enabled);
-        log(audioTrack.enabled ? 'Audio unmuted' : 'Audio muted', 'info');
+        log(audioTrack.enabled ? '🎤 Audio unmuted' : '🔇 Audio muted', 'info');
       }
     }
   };
@@ -364,7 +454,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
         setIsVideoOff(!videoTrack.enabled);
-        log(videoTrack.enabled ? 'Video enabled' : 'Video disabled', 'info');
+        log(videoTrack.enabled ? '📹 Video enabled' : '📷 Video disabled', 'info');
       }
     }
   };
@@ -373,7 +463,16 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
   const leaveRoom = () => {
     log('Leaving room...', 'info');
 
-    // IMPORTANT: Clear video srcObject BEFORE stopping tracks (Chrome fix)
+    // Stop all tracks first
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        log(`Stopped ${track.kind} track`, 'info');
+      });
+      localStreamRef.current = null;
+    }
+
+    // Clear video elements
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
       localVideoRef.current.pause();
@@ -383,102 +482,71 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       remoteVideoRef.current.pause();
     }
 
-    // Now stop the tracks
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => {
-        track.stop();
-        log(`Stopped ${track.kind} track`, 'info');
-      });
-      localStreamRef.current = null;
-    }
-
+    // Close peer connection
     if (remotePeerConnectionRef.current) {
       remotePeerConnectionRef.current.close();
       remotePeerConnectionRef.current = null;
     }
 
+    // Disconnect sockets
     if (socketRef.current) {
       socketRef.current.emit('leave-video-room', { roomId });
       socketRef.current.disconnect();
       socketRef.current = null;
     }
 
-    hasSetLocalVideo.current = false;
+    if (chatSocketRef.current) {
+      chatSocketRef.current.disconnect();
+      chatSocketRef.current = null;
+    }
+
+    // Reset state
+    isInitializingRef.current = false;
+    pendingIceCandidatesRef.current = [];
     setIsInCall(false);
     setIsConnected(false);
     setStatus('Disconnected');
     setIsAudioMuted(false);
     setIsVideoOff(false);
-    setWaitingForRemote(false);
+    setWaitingForRemote(true);
 
-    log('✓ Left room and cleaned up', 'success');
+    log('✓ Cleanup complete', 'success');
+    
+    // Navigate back
+    router.push(`/chat?chatId=${roomId}`);
   };
 
-  // Effect to handle local video when component mounts/updates
-  useEffect(() => {
-    if (localStreamRef.current && localVideoRef.current && isInCall && !hasSetLocalVideo.current) {
-      log('useEffect: Attaching local stream to video element...', 'info');
-      localVideoRef.current.srcObject = localStreamRef.current;
-      hasSetLocalVideo.current = true;
-
-      localVideoRef.current.onloadedmetadata = () => {
-        log('✓ Local video metadata loaded (from useEffect)', 'success');
-      };
-
-      localVideoRef.current.onplay = () => {
-        log('✓ Local video is playing (from useEffect)', 'success');
-      };
-
-      localVideoRef.current.play().catch(e => {
-        log(`✗ Local video play() failed (from useEffect): ${e}`, 'error');
-      });
-    }
-  }, [isInCall, localStreamRef.current]);
-
-  // Listen for rejectCall events (caller receives rejection)
+  // Listen for call rejection
   useEffect(() => {
     if (!user?._id) return;
 
-    // Connect to chat gateway to listen for rejectCall
-    const chatSocket = io('http://localhost:3001', {
+    const chatSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
       withCredentials: true,
       transports: ['websocket', 'polling'],
     });
 
     chatSocketRef.current = chatSocket;
 
-    chatSocket.on('connect', () => {
-      console.log('Chat socket connected for rejectCall listening');
-    });
-
     chatSocket.on('rejectCall', (data: { to: string; from: string; roomId: string }) => {
-      // Check if the rejection is for us (we are the caller)
       if (data.to === user._id && data.roomId === roomId) {
-        log('Call rejected by recipient', 'error');
-        toast.error('Call denied', {
-          position: 'top-center',
-        });
-        
-        // Leave the room automatically
+        log('❌ Call rejected by recipient', 'error');
+        toast.error('Call was declined');
         leaveRoom();
-        
-        // Navigate back to chat after a short delay
-        setTimeout(() => {
-          router.push(`/chat?chatId=${roomId}`);
-        }, 1000);
       }
     });
 
     return () => {
       chatSocket.off('rejectCall');
       chatSocket.disconnect();
-      chatSocketRef.current = null;
     };
-  }, [user?._id, roomId, router]);
+  }, [user?._id, roomId]);
 
-  // Cleanup on unmount
+  // Auto-start call on mount
   useEffect(() => {
+    startCall();
+
     return () => {
+      // Cleanup on unmount
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -503,7 +571,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
         <div className="card bg-base-100 shadow-xl mb-6">
           <div className="card-body p-4 text-center">
             <div className="text-lg font-semibold text-base-content">{status}</div>
-            {userId && <div className="text-sm text-base-content/60 mt-1">User: {userName}</div>}
+            {userName && <div className="text-sm text-base-content/60 mt-1">User: {userName}</div>}
             {isConnected && (
               <div className="badge badge-success gap-2 mt-2">
                 <span className="w-2 h-2 bg-success-content rounded-full animate-pulse"></span>
@@ -514,49 +582,30 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
         </div>
 
         {/* Controls */}
-        <div className="flex flex-wrap justify-center gap-3 mb-6">
-          {!isInCall ? (
+        {isInCall && (
+          <div className="flex flex-wrap justify-center gap-3 mb-6">
             <button
-              onClick={startCall}
-              className="btn btn-primary btn-lg gap-2"
+              onClick={toggleMute}
+              className={`btn gap-2 ${isAudioMuted ? 'btn-error' : 'btn-ghost'}`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              Start Call
+              {isAudioMuted ? '🔇' : '🎤'}
+              {isAudioMuted ? 'Unmute' : 'Mute'}
             </button>
-          ) : (
-            <>
-              <button
-                onClick={toggleMute}
-                className={`btn gap-2 ${
-                  isAudioMuted ? 'btn-error' : 'btn-ghost'
-                }`}
-              >
-                {isAudioMuted ? '🔇' : '🎤'}
-                {isAudioMuted ? 'Unmute' : 'Mute'}
-              </button>
-              <button
-                onClick={toggleVideo}
-                className={`btn gap-2 ${
-                  isVideoOff ? 'btn-error' : 'btn-ghost'
-                }`}
-              >
-                {isVideoOff ? '📷' : '📹'}
-                {isVideoOff ? 'Show' : 'Hide'}
-              </button>
-              <button
-                onClick={leaveRoom}
-                className="btn btn-error gap-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
-                </svg>
-                Leave
-              </button>
-            </>
-          )}
-        </div>
+            <button
+              onClick={toggleVideo}
+              className={`btn gap-2 ${isVideoOff ? 'btn-error' : 'btn-ghost'}`}
+            >
+              {isVideoOff ? '📷' : '📹'}
+              {isVideoOff ? 'Show' : 'Hide'}
+            </button>
+            <button onClick={leaveRoom} className="btn btn-error gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+              </svg>
+              Leave
+            </button>
+          </div>
+        )}
 
         {/* Video Container */}
         {isInCall && (
@@ -568,7 +617,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
                   ref={localVideoRef}
                   autoPlay
                   playsInline
-                  muted={true}
+                  muted
                   className="w-full h-full object-cover"
                   style={{ transform: 'scaleX(-1)' }}
                 />
@@ -587,25 +636,29 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
             {/* Remote Video */}
             <div className="card bg-base-300 shadow-xl overflow-hidden">
               <div className="relative aspect-video bg-base-300">
-                {waitingForRemote ? (
-                  <div className="w-full h-full flex items-center justify-center">
+                {/* Always render the video element so the ref is valid */}
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className={`w-full h-full object-cover ${waitingForRemote ? 'opacity-0' : 'opacity-100'}`}
+                />
+                
+                {/* Overlay for waiting state */}
+                {waitingForRemote && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-base-300">
                     <div className="text-center">
                       <span className="loading loading-spinner loading-lg text-primary"></span>
-                      <div className="mt-4 text-base-content/70">Waiting for remote user...</div>
+                      <div className="mt-4 text-base-content/70 font-semibold">
+                        {status.includes('Waiting') ? status : 'Connecting...'}
+                      </div>
                     </div>
                   </div>
-                ) : (
+                )}
+                
+                {/* Badges - only show when connected */}
+                {!waitingForRemote && (
                   <>
-                    <video
-                      ref={remoteVideoRef}
-                      autoPlay
-                      playsInline
-                      muted={false}
-                      className="w-full h-full object-cover"
-                      onLoadedMetadata={() => log('✓ Remote video metadata loaded', 'success')}
-                      onPlay={() => log('✓ Remote video is playing', 'success')}
-                      onError={(e) => log(`✗ Remote video error: ${e}`, 'error')}
-                    />
                     <div className="absolute bottom-3 left-3 badge badge-neutral badge-lg">
                       Remote User
                     </div>
@@ -641,9 +694,6 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
                   [{log.timestamp.toLocaleTimeString()}] {log.message}
                 </div>
               ))}
-              {logs.length === 0 && (
-                <div className="text-base-content/50">No logs yet. Click "Start Call" to begin.</div>
-              )}
             </div>
           </div>
         </div>

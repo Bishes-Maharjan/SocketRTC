@@ -2,15 +2,14 @@
 import { useAuth } from "@/auth/AuthProvider";
 import { ChatRoomCard } from "@/components/Chat/ChatRoomCard";
 import { ChatWindow } from "@/components/Chat/ChatWindow";
+import { useSocket } from "@/hooks/useSocket";
 import { ChatRoom, Message } from "@/interfaces/allInterface";
 import { getAllChats } from "@/lib/apis/chat.api";
 import { useChatStore } from "@/stores/useChatStore";
 import { useRouter } from "next/navigation";
-import React from "react";
-import { useEffect, useRef, useState } from "react";
-import { io, Socket } from "socket.io-client";
+import React, { useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
-import { useSocket } from "@/hooks/useSocket";
+import { Socket } from "socket.io-client";
 
 export default function ChatsPage({ searchParams }: { searchParams: Promise<{ chatId: string }> }) {
   const { user } = useAuth();
@@ -139,32 +138,32 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
         // Show toast with pickup and reject buttons
         toast(
           (t) => (
-            <div className="flex flex-col gap-2">
-              <p className="font-semibold">{callerName} is calling you</p>
+            <div className="bg-base-100 p-4 rounded-lg shadow-xl border border-base-300">
+              <p className="font-semibold text-base-content mb-3">
+                📞 {callerName} is calling you
+              </p>
+
               <div className="flex gap-2">
                 <button
+                  className="btn btn-success btn-sm flex-1"
                   onClick={() => {
                     toast.dismiss(t.id);
-                    // Navigate to video call page
                     router.push(`/call/${data.roomId}`);
                   }}
-                  className="btn btn-primary btn-sm"
                 >
                   Pick Up
                 </button>
+
                 <button
+                  className="btn btn-error btn-sm flex-1"
                   onClick={() => {
                     toast.dismiss(t.id);
-                    // Send reject call
-                    if (globalSocketRef.current) {
-                      globalSocketRef.current.emit("rejectCall", {
-                        to: data.from,
-                        from: user?._id,
-                        roomId: data.roomId,
-                      });
-                    }
+                    globalSocketRef.current?.emit("rejectCall", {
+                      to: data.from,
+                      from: user?._id,
+                      roomId: data.roomId,
+                    });
                   }}
-                  className="btn btn-error btn-sm"
                 >
                   Reject
                 </button>
@@ -172,13 +171,12 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
             </div>
           ),
           {
-            duration: 30000, // 30 seconds
-            position: "top-center",
+            duration: 30000,
+            position: 'top-center',
             style: {
-              background: "hsl(var(--b1))",
-              color: "hsl(var(--bc))",
-              padding: "16px",
-              borderRadius: "8px",
+              background: 'transparent',
+              boxShadow: 'none',
+              padding: 0,
             },
           }
         );
