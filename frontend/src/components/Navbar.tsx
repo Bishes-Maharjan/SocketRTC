@@ -2,19 +2,19 @@
 
 import { useAuthUser } from "@/hooks/useAuthUser";
 import { useLogout } from "@/hooks/useLogout";
+import { useSocket } from "@/hooks/useSocket";
+import { unReadChatNotification } from "@/lib/apis/chat.api";
 import { getNotificationCount } from "@/lib/apis/notification.api";
 import { getImage } from "@/lib/utils";
+import { useChatStore } from "@/stores/useChatStore";
 import { useQuery } from "@tanstack/react-query";
-import { BellIcon, LogOutIcon, ShipWheelIcon, MessageSquareIcon } from "lucide-react";
+import { BellIcon, LogOutIcon, MessageSquareIcon, ShipWheelIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import PageLoader from "./PageLoader";
 import ThemeSelector from "./ThemeSelector";
-import { unReadChatNotification } from "@/lib/apis/chat.api";
-import { useEffect } from "react";
-import { useChatStore } from "@/stores/useChatStore";
-import { useSocket } from "@/hooks/useSocket";
 
 const Navbar = () => {
   const { user: authUser } = useAuthUser();
@@ -32,13 +32,13 @@ const Navbar = () => {
   useEffect(() => {
     console.log("Navbar useEffect - socket:", socket, "authUser:", authUser?._id, "isConnected:", isConnected);
     
-    // ✅ Wait for BOTH socket to exist AND connection to be established
+    // Wait for BOTH socket to exist AND connection to be established
     if (!socket || !authUser?._id || !isConnected) {
       console.log("Waiting for socket connection...");
       return;
     }
 
-    console.log("✅ Socket is ready! Setting up listeners in Navbar");
+    console.log("Socket is ready! Setting up listeners in Navbar");
 
     // Fetch initial unread count
     const fetchInitialUnreadCount = async () => {

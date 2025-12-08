@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/auth/AuthProvider';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { io, Socket } from 'socket.io-client';
 
 const ICE_SERVERS = {
   iceServers: [
@@ -373,28 +373,34 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
   const leaveRoom = () => {
     log('Leaving room...', 'info');
 
+    // IMPORTANT: Clear video srcObject BEFORE stopping tracks (Chrome fix)
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+      localVideoRef.current.pause();
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+      remoteVideoRef.current.pause();
+    }
+
+    // Now stop the tracks
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+        log(`Stopped ${track.kind} track`, 'info');
+      });
+      localStreamRef.current = null;
+    }
+
     if (remotePeerConnectionRef.current) {
       remotePeerConnectionRef.current.close();
       remotePeerConnectionRef.current = null;
-    }
-
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
     }
 
     if (socketRef.current) {
       socketRef.current.emit('leave-video-room', { roomId });
       socketRef.current.disconnect();
       socketRef.current = null;
-    }
-
-    // Reset local video ref
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = null;
-    }
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = null;
     }
 
     hasSetLocalVideo.current = false;
@@ -489,51 +495,64 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="min-h-screen bg-base-200 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-center">🎥 WebRTC Video Call</h1>
+        <h1 className="text-3xl font-bold mb-6 text-center text-base-content">🎥 Video Call</h1>
 
-        {/* Status */}
-        <div className="bg-gray-800 rounded-lg p-4 mb-6 text-center">
-          <div className="text-lg font-semibold">{status}</div>
-          {userId && <div className="text-sm text-gray-400 mt-1">User: {userName}</div>}
-          {isConnected && (
-            <div className="text-sm text-green-400 mt-1">● Connected to server</div>
-          )}
+        {/* Status Card */}
+        <div className="card bg-base-100 shadow-xl mb-6">
+          <div className="card-body p-4 text-center">
+            <div className="text-lg font-semibold text-base-content">{status}</div>
+            {userId && <div className="text-sm text-base-content/60 mt-1">User: {userName}</div>}
+            {isConnected && (
+              <div className="badge badge-success gap-2 mt-2">
+                <span className="w-2 h-2 bg-success-content rounded-full animate-pulse"></span>
+                Connected
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Controls */}
-        <div className="flex justify-center gap-4 mb-6">
+        <div className="flex flex-wrap justify-center gap-3 mb-6">
           {!isInCall ? (
             <button
               onClick={startCall}
-              className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg font-semibold transition"
+              className="btn btn-primary btn-lg gap-2"
             >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
               Start Call
             </button>
           ) : (
             <>
               <button
                 onClick={toggleMute}
-                className={`px-6 py-3 rounded-lg font-semibold transition ${
-                  isAudioMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
+                className={`btn gap-2 ${
+                  isAudioMuted ? 'btn-error' : 'btn-ghost'
                 }`}
               >
-                {isAudioMuted ? '🔇 Unmute' : '🎤 Mute'}
+                {isAudioMuted ? '🔇' : '🎤'}
+                {isAudioMuted ? 'Unmute' : 'Mute'}
               </button>
               <button
                 onClick={toggleVideo}
-                className={`px-6 py-3 rounded-lg font-semibold transition ${
-                  isVideoOff ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
+                className={`btn gap-2 ${
+                  isVideoOff ? 'btn-error' : 'btn-ghost'
                 }`}
               >
-                {isVideoOff ? '📷 Show Video' : '📹 Hide Video'}
+                {isVideoOff ? '📷' : '📹'}
+                {isVideoOff ? 'Show' : 'Hide'}
               </button>
               <button
                 onClick={leaveRoom}
-                className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold transition"
+                className="btn btn-error gap-2"
               >
-                Leave Room
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+                </svg>
+                Leave
               </button>
             </>
           )}
@@ -541,84 +560,91 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
 
         {/* Video Container */}
         {isInCall && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             {/* Local Video */}
-            <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video">
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted={true}  // ALWAYS muted - this is YOUR video/audio
-                className="w-full h-full object-cover"
-                style={{ transform: 'scaleX(-1)' }} // Mirror effect for local video
-              />
-              <div className="absolute bottom-4 left-4 bg-black bg-opacity-60 px-3 py-1 rounded">
-                You (Local)
-              </div>
-              {/* Debug indicator */}
-              {localStreamRef.current && (
-                <div className="absolute top-4 left-4 bg-green-600 text-xs px-2 py-1 rounded">
-                  ● Live
+            <div className="card bg-base-300 shadow-xl overflow-hidden">
+              <div className="relative aspect-video bg-base-300">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted={true}
+                  className="w-full h-full object-cover"
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+                <div className="absolute bottom-3 left-3 badge badge-neutral badge-lg">
+                  You (Local)
                 </div>
-              )}
+                {localStreamRef.current && (
+                  <div className="absolute top-3 left-3 badge badge-success gap-1">
+                    <span className="w-2 h-2 bg-success-content rounded-full animate-pulse"></span>
+                    Live
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Remote Video */}
-            <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video">
-              {waitingForRemote ? (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">⏳</div>
-                    <div>Waiting for remote user...</div>
+            <div className="card bg-base-300 shadow-xl overflow-hidden">
+              <div className="relative aspect-video bg-base-300">
+                {waitingForRemote ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="text-center">
+                      <span className="loading loading-spinner loading-lg text-primary"></span>
+                      <div className="mt-4 text-base-content/70">Waiting for remote user...</div>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <>
-                  <video
-                    ref={remoteVideoRef}
-                    autoPlay
-                    playsInline
-                    muted={false}  // NOT muted - this is the OTHER person's video/audio
-                    className="w-full h-full object-cover"
-                    onLoadedMetadata={() => log('✓ Remote video metadata loaded', 'success')}
-                    onPlay={() => log('✓ Remote video is playing', 'success')}
-                    onError={(e) => log(`✗ Remote video error: ${e}`, 'error')}
-                  />
-                  <div className="absolute bottom-4 left-4 bg-black bg-opacity-60 px-3 py-1 rounded">
-                    Remote User
-                  </div>
-                  <div className="absolute top-4 left-4 bg-green-600 text-xs px-2 py-1 rounded">
-                    ● Live
-                  </div>
-                </>
-              )}
+                ) : (
+                  <>
+                    <video
+                      ref={remoteVideoRef}
+                      autoPlay
+                      playsInline
+                      muted={false}
+                      className="w-full h-full object-cover"
+                      onLoadedMetadata={() => log('✓ Remote video metadata loaded', 'success')}
+                      onPlay={() => log('✓ Remote video is playing', 'success')}
+                      onError={(e) => log(`✗ Remote video error: ${e}`, 'error')}
+                    />
+                    <div className="absolute bottom-3 left-3 badge badge-neutral badge-lg">
+                      Remote User
+                    </div>
+                    <div className="absolute top-3 left-3 badge badge-success gap-1">
+                      <span className="w-2 h-2 bg-success-content rounded-full animate-pulse"></span>
+                      Live
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}
 
         {/* Debug Console */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h2 className="text-xl font-bold mb-3">Debug Console</h2>
-          <div className="bg-black rounded p-3 h-64 overflow-y-auto font-mono text-sm space-y-1">
-            {logs.map((log, index) => (
-              <div
-                key={index}
-                className={`${
-                  log.type === 'error'
-                    ? 'text-red-400'
-                    : log.type === 'success'
-                    ? 'text-green-400'
-                    : log.type === 'warning'
-                    ? 'text-yellow-400'
-                    : 'text-gray-300'
-                }`}
-              >
-                [{log.timestamp.toLocaleTimeString()}] {log.message}
-              </div>
-            ))}
-            {logs.length === 0 && (
-              <div className="text-gray-500">No logs yet. Click "Start Call" to begin.</div>
-            )}
+        <div className="card bg-base-100 shadow-xl">
+          <div className="card-body p-4">
+            <h2 className="card-title text-base-content">Debug Console</h2>
+            <div className="bg-base-300 rounded-lg p-3 h-64 overflow-y-auto font-mono text-xs space-y-1">
+              {logs.map((log, index) => (
+                <div
+                  key={index}
+                  className={`${
+                    log.type === 'error'
+                      ? 'text-error'
+                      : log.type === 'success'
+                      ? 'text-success'
+                      : log.type === 'warning'
+                      ? 'text-warning'
+                      : 'text-base-content/70'
+                  }`}
+                >
+                  [{log.timestamp.toLocaleTimeString()}] {log.message}
+                </div>
+              ))}
+              {logs.length === 0 && (
+                <div className="text-base-content/50">No logs yet. Click "Start Call" to begin.</div>
+              )}
+            </div>
           </div>
         </div>
       </div>
