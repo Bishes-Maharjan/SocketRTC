@@ -1,13 +1,15 @@
 # SocketRTC 🎥💬
 
-A real-time video calling and chat application built with **Next.js** and **NestJS**, powered by [GetStream.io](https://getstream.io/) for robust communication infrastructure.
+A real-time video calling and chat application built with **Next.js** and **NestJS**, featuring a **custom-built WebRTC Gateway** for peer-to-peer video communication.
 
-This project demonstrates a modern approach to WebRTC video calls, real-time messaging, and secure authentication.
+This project demonstrates a deep implementation of WebRTC signaling using Socket.io, handling offers, answers, and ICE candidates manually without relying on external video SDKs.
 
 ## 🚀 Features
 
+-   **Custom WebRTC Implementation**: Built from scratch using native `RTCPeerConnection` for full control over the video pipeline.
+-   **Real-time Signaling**: Socket.io-powered gateway for instant connection handling.
 -   **Video Calling**: Full-screen video calls with a modern UI (Google Meet style).
--   **Real-time Chat**: Instant messaging powered by Stream Chat.
+-   **Real-time Chat**: Messaging system integrated with the calling experience.
 -   **Authentication**: Secure login with JWT and Google OAuth strategies.
 -   **Incoming Call Notifications**: Global modal notifications for incoming calls.
 -   **Responsive Design**: Optimized for desktop and mobile experiences (TailwindCSS + DaisyUI).
@@ -15,19 +17,19 @@ This project demonstrates a modern approach to WebRTC video calls, real-time mes
 
 ## 🛠 Tech Stack
 
-### Frontend
--   **Framework**: [Next.js 15](https://nextjs.org/) (React 19)
--   **Styling**: [TailwindCSS](https://tailwindcss.com/) & [DaisyUI](https://daisyui.com/)
--   **State Management**: [Zustand](https://github.com/pmndrs/zustand)
--   **Real-time SDKs**: `@stream-io/video-react-sdk`, `stream-chat-react`
--   **HTTP Client**: Axios
-
 ### Backend
 -   **Framework**: [NestJS](https://nestjs.com/)
 -   **Language**: TypeScript
+-   **Real-time**: **Socket.io** (Custom Signaling Gateway)
 -   **Database**: MongoDB (via Mongoose)
--   **WebSockets**: Socket.io (for signaling and custom events)
 -   **Auth**: Passport (Google OAuth2, JWT)
+
+### Frontend
+-   **Framework**: [Next.js 15](https://nextjs.org/) (React 19)
+-   **Styling**: [TailwindCSS](https://tailwindcss.com/) & [DaisyUI](https://daisyui.com/)
+-   **WebRTC**: Native Browser APIs (`navigator.mediaDevices`, `RTCPeerConnection`)
+-   **State Management**: [Zustand](https://github.com/pmndrs/zustand)
+-   **HTTP Client**: Axios
 
 ## 📋 Prerequisites
 
@@ -51,32 +53,29 @@ cd clz-project
 cd backend
 pnpm install
 ```
-Create a `.env` file in `backend/` based on `backend.env.example.txt` (or use the contents below):
+Create a `.env` file in `backend/`:
 ```bash
 # backend/.env
 
 # Server
 PORT=3001
-FRONTEND_URL=http://localhost:3000
-
-# Stream IO (Get these from getstream.io dashboard)
-STREAM_API_KEY=your_stream_api_key
-STREAM_API_SECRET=your_stream_api_secret
-
-# Database
-MONGO_URI=your_mongodb_connection_string
+NODE_ENV=development
+# FRONTEND_URL=http://localhost:3000 # Optional/Used for CORS in production
 
 # Authentication
-JWT_SECRET=your_secure_jwt_secret
+JWT_SECRET=your_super_long_secure_secret_key
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 GOOGLE_CALLBACK_URL=http://localhost:3001/auth/google/callback
+
+# Database
+MONGO_URI=mongodb://localhost:27017/streamify
 ```
 **Start the Backend:**
 ```bash
 pnpm start:dev
 ```
-*> The backend runs on port `3001`. Do NOT change this unless you update the frontend config.*
+*> The backend runs on port `3001`.*
 
 ### 3. Frontend Setup
 Open a new terminal tab.
@@ -84,13 +83,12 @@ Open a new terminal tab.
 cd frontend
 pnpm install
 ```
-Create a `.env` file in `frontend/` based on `frontend.env.example.txt`:
+Create a `.env` file in `frontend/`:
 ```bash
 # frontend/.env
 
 NEXT_PUBLIC_API_URL=http://localhost:3001
-NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
-NEXT_PUBLIC_STREAM_API_KEY=your_stream_api_key # Must match backend key
+NODE_ENV=development
 ```
 **Start the Frontend:**
 ```bash
@@ -111,9 +109,8 @@ pnpm dev
 2.  **Friend List**: Add friends by email.
 3.  **Chat**: Click a friend to start chatting.
 4.  **Video Call**: Click the video icon in chat to initiate a call.
-    *   The receiver gets an incoming call popup.
-    *   On accept, both users are redirected to the video room.
-    *   Signaling (offer/answer/ICE) is handled via Backend Socket Gateway.
+    *   **Signaling**: The App uses a custom `video.gateway.ts` to exchange SDP and ICE candidates.
+    *   **Connection**: A direct P2P mesh connection is established between users.
 
 ## 📄 License
 
