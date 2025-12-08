@@ -410,23 +410,4 @@ export class WebRtcGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
-  /**
-   * Debug endpoint to check room status
-   */
-  @SubscribeMessage('debug-video-room')
-  handleDebugRoom(
-    @MessageBody() { roomId }: { roomId: string },
-    @ConnectedSocket() client: AuthenticatedSocket,
-  ) {
-    const roomUsers = this.videoRooms.get(roomId);
-    const userId = client.data.user?.id;
-
-    client.emit('debug-video-room-response', {
-      roomId,
-      users: roomUsers ? Array.from(roomUsers) : [],
-      count: roomUsers?.size || 0,
-      yourUserId: userId,
-      yourSocketId: client.id,
-    });
-  }
 }

@@ -56,6 +56,26 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       return newLogs.slice(-100);
     });
   };
+// Auto-start call on mount
+  useEffect(() => {
+    startCall();
+
+    return () => {
+      // Cleanup on unmount
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (remotePeerConnectionRef.current) {
+        remotePeerConnectionRef.current.close();
+      }
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      if (chatSocketRef.current) {
+        chatSocketRef.current.disconnect();
+      }
+    };
+  }, []);
 
   // Initialize call
   const startCall = async () => {
@@ -187,7 +207,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     });
 
     socket.on('user-joined', async ({ userId: joinedUserId, username: joinedUsername }) => {
-      log(`👤 User joined: ${joinedUsername} (${joinedUserId})`, 'info');
+      log(`User joined: ${joinedUsername} (${joinedUserId})`, 'info');
       
       // If we're the caller, RE-SEND the offer when receiver joins
       const isInitiator = new URLSearchParams(window.location.search).get('initiator') === 'true';
@@ -209,13 +229,13 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     });
 
     socket.on('offer', async ({ from, offer }) => {
-      log(`📞 Received offer from: ${from}`, 'info');
+      log(` Received offer from: ${from}`, 'info');
 
       // Check if we already have a peer connection
       if (remotePeerConnectionRef.current) {
         const state = remotePeerConnectionRef.current.signalingState;
         if (state !== 'stable' && state !== 'closed') {
-          log(`⚠ Already in signaling state: ${state}, ignoring offer`, 'warning');
+          log(` Already in signaling state: ${state}, ignoring offer`, 'warning');
           return;
         }
       }
@@ -225,7 +245,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
 
         log('Setting remote description (offer)...', 'info');
         await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-        log('✓ Remote description set', 'success');
+        log(' Remote description set', 'success');
 
         // Process any pending ICE candidates
         await processPendingIceCandidates();
@@ -233,54 +253,54 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
         log('Creating answer...', 'info');
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
-        log('✓ Local description set (answer)', 'success');
+        log(' Local description set (answer)', 'success');
 
         log('Sending answer...', 'info');
         socket.emit('answer', { roomId, answer });
       } catch (error: any) {
-        log(`✗ Error handling offer: ${error.message}`, 'error');
+        log(` Error handling offer: ${error.message}`, 'error');
       }
     });
 
     socket.on('answer', async ({ from, answer }) => {
-      log(`📞 Received answer from: ${from}`, 'info');
+      log(` Received answer from: ${from}`, 'info');
 
       if (!remotePeerConnectionRef.current) {
-        log('✗ No peer connection exists', 'error');
+        log(' No peer connection exists', 'error');
         return;
       }
 
       const state = remotePeerConnectionRef.current.signalingState;
       if (state !== 'have-local-offer') {
-        log(`⚠ Wrong state for answer: ${state}`, 'warning');
+        log(`  Wrong state for answer: ${state}`, 'warning');
         return;
       }
 
       try {
-        log('Setting remote description (answer)...', 'info');
+        log(' Setting remote description (answer)...', 'info');
         await remotePeerConnectionRef.current.setRemoteDescription(
           new RTCSessionDescription(answer)
         );
-        log('✓ Remote description set', 'success');
+        log(' Remote description set', 'success');
 
         // Process any pending ICE candidates
         await processPendingIceCandidates();
       } catch (error: any) {
-        log(`✗ Error handling answer: ${error.message}`, 'error');
+        log(` Error handling answer: ${error.message}`, 'error');
       }
     });
 
     socket.on('ice-candidate', async ({ sender, candidate }) => {
-      log(`🧊 Received ICE candidate from: ${sender}`, 'info');
+      log(` Received ICE candidate from: ${sender}`, 'info');
 
       if (!remotePeerConnectionRef.current) {
-        log('⚠ No peer connection yet, skipping candidate', 'warning');
+        log(' No peer connection yet, skipping candidate', 'warning');
         return;
       }
 
       // Queue candidate if remote description not set yet
       if (!remotePeerConnectionRef.current.remoteDescription) {
-        log('⚠ No remote description yet, queuing candidate', 'warning');
+        log(' No remote description yet, queuing candidate', 'warning');
         pendingIceCandidatesRef.current.push(new RTCIceCandidate(candidate));
         return;
       }
@@ -289,9 +309,9 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
         await remotePeerConnectionRef.current.addIceCandidate(
           new RTCIceCandidate(candidate)
         );
-        log('✓ Added ICE candidate', 'success');
+        log(' Added ICE candidate', 'success');
       } catch (error: any) {
-        log(`✗ Error adding ICE candidate: ${error.message}`, 'error');
+        log(` Error adding ICE candidate: ${error.message}`, 'error');
       }
     });
 
@@ -314,12 +334,12 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       try {
         await remotePeerConnectionRef.current?.addIceCandidate(candidate);
       } catch (error: any) {
-        log(`✗ Error adding queued ICE candidate: ${error.message}`, 'error');
+        log(` Error adding queued ICE candidate: ${error.message}`, 'error');
       }
     }
 
     pendingIceCandidatesRef.current = [];
-    log('✓ Processed all pending ICE candidates', 'success');
+    log(' Processed all pending ICE candidates', 'success');
   };
 
   // Initiate call (caller only)
@@ -541,27 +561,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     };
   }, [user?._id, roomId]);
 
-  // Auto-start call on mount
-  useEffect(() => {
-    startCall();
-
-    return () => {
-      // Cleanup on unmount
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (remotePeerConnectionRef.current) {
-        remotePeerConnectionRef.current.close();
-      }
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-      if (chatSocketRef.current) {
-        chatSocketRef.current.disconnect();
-      }
-    };
-  }, []);
-
+  
   // State for debug console visibility
   const [showDebug, setShowDebug] = useState(false);
 

@@ -18,8 +18,8 @@ export function formatMessageTime(dateString: string): string {
 export const capitialize = (str: string): string =>
   str.charAt(0).toUpperCase() + str.slice(1);
 
-export const getImage = (image: string): string => {
-
+export const getImage = (image: string | undefined): string => {
+if(!image) return '';
   const img =
     image.includes('uploads') ? `${process.env.NEXT_PUBLIC_API_URL}${image}` : image;
 

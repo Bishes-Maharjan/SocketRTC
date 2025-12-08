@@ -6,6 +6,8 @@ import Navbar from '@/components/Navbar';
 import PageLoader from '@/components/PageLoader';
 import Sidebar from '@/components/Sidebar';
 import { useSocket } from '@/hooks/useSocket';
+import { getUser } from '@/lib/apis/friend.api';
+import { getImage } from '@/lib/utils';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import LoginPage from './login/page';
@@ -17,6 +19,7 @@ interface IncomingCall {
   to: string;
   roomId: string;
   callerName: string;
+  image: string;
 }
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -55,17 +58,25 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!socket || !isConnected || !user?._id) return;
 
-    const handleCalling = (data: { from: string; to: string; roomId: string; callerName?: string }) => {
+    const handleCalling = async (data: { from: string; to: string; roomId: string; callerName?: string }) => {
       // Check if the call is for us
       if (data.to === user._id) {
         // Don't show if already on call page
         if (pathname?.startsWith('/call')) return;
         
+        async function getUserImage(userId: string) {
+          const res = await getUser(userId);
+          return res.image;
+        }
+
+        const image = await getUserImage(data.from);
+
         setIncomingCall({
           from: data.from,
           to: data.to,
           roomId: data.roomId,
           callerName: data.callerName || 'Someone',
+          image
         });
       }
     };
@@ -148,6 +159,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           callerName={incomingCall?.callerName || 'Someone'}
           roomId={incomingCall?.roomId || ''}
           callerId={incomingCall?.from || ''}
+          image={getImage(incomingCall?.image)}
           onPickUp={handlePickUp}
           onReject={handleRejectCall}
         />
@@ -174,6 +186,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         callerName={incomingCall?.callerName || 'Someone'}
         roomId={incomingCall?.roomId || ''}
         callerId={incomingCall?.from || ''}
+        image={getImage(incomingCall?.image)}
         onPickUp={handlePickUp}
         onReject={handleRejectCall}
       />

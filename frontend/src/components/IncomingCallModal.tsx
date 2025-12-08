@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -8,6 +9,7 @@ interface IncomingCallModalProps {
   callerName: string;
   roomId: string;
   callerId: string;
+  image: string;
   onPickUp: () => void;
   onReject: () => void;
 }
@@ -17,14 +19,15 @@ export default function IncomingCallModal({
   callerName,
   roomId,
   callerId,
+  image,
   onPickUp,
   onReject,
 }: IncomingCallModalProps) {
   const router = useRouter();
   const [countdown, setCountdown] = useState(30);
-
   // Countdown timer
   useEffect(() => {
+
     if (!isOpen) {
       setCountdown(30);
       return;
@@ -63,7 +66,14 @@ export default function IncomingCallModal({
           {/* Caller Avatar */}
           <div className="relative mb-2">
             <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-4xl text-white shadow-lg">
-              {callerName.charAt(0).toUpperCase()}
+              <Image
+                fill
+                src={image}
+                alt="Caller"
+                className="rounded-full object-cover"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                priority
+              />
             </div>
             {/* Pulsing ring animation */}
             <div className="absolute inset-0 rounded-full border-4 border-primary animate-ping opacity-30"></div>

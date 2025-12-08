@@ -443,23 +443,4 @@ export class ChatGateway
     );
   }
 
-  /**
-   * Debug endpoint to check room status
-   */
-  @SubscribeMessage('debug-room')
-  async debugRoom(
-    @MessageBody() { roomId }: { roomId: string },
-    @ConnectedSocket() client: AuthenticatedSocket,
-  ) {
-    const usersInRoom = await this.getUsersInRoom(roomId);
-    const userCount = await this.getRoomUserCount(roomId);
-
-    client.emit('debug-room-response', {
-      roomId,
-      users: usersInRoom,
-      count: userCount,
-      yourUserId: client.data.user?.id,
-      yourSocketId: client.id,
-    });
-  }
 }
