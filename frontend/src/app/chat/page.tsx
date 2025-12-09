@@ -21,7 +21,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
   const selectedChatRef = useRef<ChatRoom | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const { socket, isConnected, joinRoom } = useSocket(); // Use shared socket
+  const { socket, isConnected } = useSocket(); // Use shared socket
 
   // Zustand store
   const {
@@ -68,7 +68,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     globalSocketRef.current = socket;
 
     // Handle receiving messages for any room (via user's personal room)
-    const handleReceiveMessage = (data: any) => {
+    const handleReceiveMessage = (data: Message) => {
       const newMsg: Message = {
         _id: data._id,
         sender: data.sender,
@@ -110,20 +110,20 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     };
 
     // Handle messages marked as read
-    const handleMessagesMarkedRead = (data: any) => {
+    const handleMessagesMarkedRead = (data: {userId: string; roomId: string}) => {
       if (data.userId !== user?._id) {
         // Another user read messages - reset unread count
         updateChatUnreadCount(data.roomId, 0);
       }
     };
 
-    const handleUserTyping = (data: any) => {
+    const handleUserTyping = (data: {userId: string; roomId: string}) => {
       if (data.userId !== user?._id && data.roomId) {
         setTyping(data.roomId, data.userId, true);
       }
     };
 
-    const handleUserStoppedTyping = (data: any) => {
+    const handleUserStoppedTyping = (data: {userId: string; roomId: string}) => {
       if (data.userId !== user?._id && data.roomId) {
         clearTyping(data.roomId, data.userId);
       }
@@ -131,7 +131,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
 
     // Note: 'calling' event is now handled globally in root-client-layout.tsx
 
-    const handleRejectCall = (data: any) => {
+    const handleRejectCall = (data: {to: string}) => {
       // Check if the rejection is for us (we are the caller)
       if (data.to === user?._id) {
         toast.error("Call denied", {

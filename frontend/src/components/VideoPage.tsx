@@ -120,7 +120,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       setupSocketListeners(socket);
       
     } catch (error: any) {
-      log(`✗ Error accessing media devices: ${error.message}`, 'error');
+      log(`✗ Error accessing media devices: ${error?.message}`, 'error');
       toast.error('Could not access camera/microphone. Please check permissions.');
       setStatus('Failed to access media devices');
       setIsInCall(false);

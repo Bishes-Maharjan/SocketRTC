@@ -6,7 +6,6 @@ import { UserDocument } from 'src/user/model/user.model';
 export type ChatRoomWithUser = UserDocument & { roomId: string };
 
 export interface AuthenticatedSocket extends Socket {
-  [x: string]: any;
   data: {
     user: ValidateUser;
   };
