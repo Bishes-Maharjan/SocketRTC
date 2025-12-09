@@ -157,9 +157,7 @@ const OnboardingForm = ({
     nativeLanguage: authUser?.nativeLanguage || "",
     learningLanguage: authUser?.learningLanguage || "",
     location: authUser?.location || "",
-    image:
-    authUser?.image
-        || `/uploads/avatar.jpg`,
+    image: authUser?.image || '/uploads/avatar.jpg'
   }));
 
   const [errors, setErrors] = useState({
