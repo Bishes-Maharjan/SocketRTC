@@ -51,7 +51,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     // Initialize socket connection only once
     if (!socketRef.current) {
       console.log("Creating new socket connection...");
-      const newSocket = io("http://localhost:3001", {
+      const newSocket = io(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001", {
         withCredentials: true,
         transports: ["websocket", "polling"],
       });
