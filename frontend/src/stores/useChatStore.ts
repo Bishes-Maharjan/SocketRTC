@@ -248,7 +248,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     });
   },
 
-  markMessagesAsRead: (roomId, userId) => {
+  markMessagesAsRead: (roomId) => {
     set((state) => {
       const pages = state.messages[roomId];
       if (!pages) return state;
@@ -387,7 +387,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // Reset Actions
   resetRoom: (roomId) => {
     set((state) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { [roomId]: _, ...remainingMessages } = state.messages;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { [roomId]: __, ...remainingTyping } = state.typingUsers;
       return {
         messages: remainingMessages,

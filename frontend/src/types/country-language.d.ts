@@ -20,7 +20,7 @@ declare module "country-language" {
   }
 
   export function getLanguage(code: string): Language | undefined;
-  export function getCountry(code: string): any;
-  export function getLanguages(code: string): any;
-  export function getCountries(code: string): any;
+  export function getCountry(code: string): unknown;
+  export function getLanguages(code: string): unknown;
+  export function getCountries(code: string): unknown;
 }

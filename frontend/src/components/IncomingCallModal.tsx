@@ -8,7 +8,6 @@ interface IncomingCallModalProps {
   isOpen: boolean;
   callerName: string;
   roomId: string;
-  callerId: string;
   image: string;
   onPickUp: () => void;
   onReject: () => void;
@@ -18,7 +17,6 @@ export default function IncomingCallModal({
   isOpen,
   callerName,
   roomId,
-  callerId,
   image,
   onPickUp,
   onReject,
@@ -85,6 +83,7 @@ export default function IncomingCallModal({
 
           {/* Countdown Timer */}
           <div className="my-4">
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <div className="radial-progress text-primary" style={{ '--value': (countdown / 30) * 100, '--size': '4rem' } as any}>
               <span className="text-lg font-bold">{countdown}s</span>
             </div>

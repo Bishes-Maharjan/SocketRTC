@@ -2,23 +2,23 @@
 import NoNotificationsFound from "@/components/NoNotification";
 import { RequestDB } from "@/interfaces/allInterface";
 import {
-  acceptFriendRequest,
-  getFriendRequest,
-  rejectFriendRequest,
+    acceptFriendRequest,
+    getFriendRequest,
+    rejectFriendRequest,
 } from "@/lib/apis/friend.api";
 import {
-  getNotificationCount,
-  readAllNotifications,
+    getNotificationCount,
+    readAllNotifications,
 } from "@/lib/apis/notification.api";
 import { formatMessageTime, getImage } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import {
-  BellIcon,
-  CheckCheckIcon,
-  ClockIcon,
-  MessageSquareIcon,
-  UserCheckIcon,
+    BellIcon,
+    CheckCheckIcon,
+    ClockIcon,
+    MessageSquareIcon,
+    UserCheckIcon,
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -62,7 +62,7 @@ const NotificationsPage = () => {
   const {
     mutate: acceptRequestMutation,
     isPending: isAcceptPending,
-    error,
+    // error, // Unused
   } = useMutation({
     mutationFn: acceptFriendRequest,
     onSuccess: (data) => {

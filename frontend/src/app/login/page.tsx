@@ -39,7 +39,7 @@ const LoginPage = () => {
 
   const {
     isPending,
-    error,
+    // error, // Unused
     mutate: loginMutation,
   } = useMutation({
     mutationFn: async (userData: typeof loginData) => {

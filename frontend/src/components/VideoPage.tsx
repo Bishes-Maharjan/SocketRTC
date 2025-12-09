@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/auth/AuthProvider';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { io, Socket } from 'socket.io-client';
 
@@ -37,13 +37,12 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
   const isInitializingRef = useRef(false);
 
   // State
-  const [isConnected, setIsConnected] = useState(false);
+  // State
   const [isInCall, setIsInCall] = useState(false);
   const [status, setStatus] = useState('Initializing...');
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [waitingForRemote, setWaitingForRemote] = useState(true);
 
@@ -56,29 +55,10 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       return newLogs.slice(-100);
     });
   };
-// Auto-start call on mount
-  useEffect(() => {
-    startCall();
 
-    return () => {
-      // Cleanup on unmount
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (remotePeerConnectionRef.current) {
-        remotePeerConnectionRef.current.close();
-      }
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-      if (chatSocketRef.current) {
-        chatSocketRef.current.disconnect();
-      }
-    };
-  }, []);
 
   // Initialize call
-  const startCall = async () => {
+  const startCall = useCallback(async () => {
     if (isInitializingRef.current) {
       log('Already initializing, skipping...', 'warning');
       return;
@@ -119,14 +99,36 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       socketRef.current = socket;
       setupSocketListeners(socket);
       
-    } catch (error: any) {
-      log(`✗ Error accessing media devices: ${error?.message}`, 'error');
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      log(`✗ Error accessing media devices: ${(error as any)?.message}`, 'error');
       toast.error('Could not access camera/microphone. Please check permissions.');
       setStatus('Failed to access media devices');
       setIsInCall(false);
       isInitializingRef.current = false;
     }
-  };
+  }, [roomId]);
+
+  // Auto-start call on mount
+  useEffect(() => {
+    startCall();
+
+    return () => {
+      // Cleanup on unmount
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (remotePeerConnectionRef.current) {
+        remotePeerConnectionRef.current.close();
+      }
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      if (chatSocketRef.current) {
+        chatSocketRef.current.disconnect();
+      }
+    };
+  }, [startCall]);
 
   // Attach local stream to video element when it's ready
   useEffect(() => {
@@ -152,7 +154,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
   const setupSocketListeners = (socket: Socket) => {
     socket.on('connect', () => {
       log(`✓ Connected to signaling server (socket.id: ${socket.id})`, 'success');
-      setIsConnected(true);
+      // setIsConnected(true); // Removed unused state
 
       // Join room
       log(`Joining video room: ${roomId}`, 'info');
@@ -161,7 +163,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
 
     socket.on('disconnect', () => {
       log('✗ Disconnected from signaling server', 'error');
-      setIsConnected(false);
+      // setIsConnected(false); // Removed unused state
       setStatus('Connection lost');
     });
 
@@ -169,12 +171,13 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       log(`✗ Connection error: ${error.message}`, 'error');
     });
 
-    socket.on('error', (error: any) => {
-      log(`✗ Socket error: ${error.message || JSON.stringify(error)}`, 'error');
+    socket.on('error', (error: unknown) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      log(`✗ Socket error: ${(error as any).message || JSON.stringify(error)}`, 'error');
     });
 
     socket.on('chatting-partner', async ({ chatPartner, currentUserId, username }) => {
-      setUserId(currentUserId);
+      // setUserId(currentUserId); // Removed unused state
       setUserName(username);
 
       log('✓ Joined room successfully', 'success');
@@ -257,8 +260,8 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
 
         log('Sending answer...', 'info');
         socket.emit('answer', { roomId, answer });
-      } catch (error: any) {
-        log(` Error handling offer: ${error.message}`, 'error');
+      } catch (error: unknown) {
+        log(` Error handling offer: ${(error as Error).message}`, 'error');
       }
     });
 
@@ -285,8 +288,8 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
 
         // Process any pending ICE candidates
         await processPendingIceCandidates();
-      } catch (error: any) {
-        log(` Error handling answer: ${error.message}`, 'error');
+      } catch (error: unknown) {
+        log(` Error handling answer: ${(error as Error).message}`, 'error');
       }
     });
 
@@ -310,8 +313,8 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
           new RTCIceCandidate(candidate)
         );
         log(' Added ICE candidate', 'success');
-      } catch (error: any) {
-        log(` Error adding ICE candidate: ${error.message}`, 'error');
+      } catch (error: unknown) {
+        log(` Error adding ICE candidate: ${(error as Error).message}`, 'error');
       }
     });
 
@@ -333,8 +336,8 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     for (const candidate of pendingIceCandidatesRef.current) {
       try {
         await remotePeerConnectionRef.current?.addIceCandidate(candidate);
-      } catch (error: any) {
-        log(` Error adding queued ICE candidate: ${error.message}`, 'error');
+      } catch (error: unknown) {
+        log(` Error adding queued ICE candidate: ${(error as Error).message}`, 'error');
       }
     }
 
@@ -354,8 +357,8 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
 
       log('Sending offer...', 'info');
       socketRef.current?.emit('offer', { roomId, offer });
-    } catch (error: any) {
-      log(`✗ Error initiating call: ${error.message}`, 'error');
+    } catch (error: unknown) {
+      log(`✗ Error initiating call: ${(error as Error).message}`, 'error');
     }
   };
 
@@ -480,7 +483,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
   };
 
   // Leave room
-  const leaveRoom = () => {
+  const leaveRoom = useCallback(() => {
     log('Leaving room...', 'info');
 
     // Stop all tracks first
@@ -524,7 +527,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     isInitializingRef.current = false;
     pendingIceCandidatesRef.current = [];
     setIsInCall(false);
-    setIsConnected(false);
+    // setIsConnected(false); // Removed unused state
     setStatus('Disconnected');
     setIsAudioMuted(false);
     setIsVideoOff(false);
@@ -534,7 +537,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     
     // Navigate back
     router.push(`/chat?chatId=${roomId}`);
-  };
+  }, [roomId, router]);
 
   // Listen for call rejection
   useEffect(() => {
@@ -559,7 +562,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
       chatSocket.off('rejectCall');
       chatSocket.disconnect();
     };
-  }, [user?._id, roomId]);
+  }, [user?._id, roomId, leaveRoom]);
 
   
   // State for debug console visibility

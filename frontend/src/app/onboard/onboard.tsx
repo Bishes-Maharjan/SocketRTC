@@ -169,7 +169,7 @@ const OnboardingForm = ({
 
   const [imageCount, setImageCount] = useState(0);
   const [isFormValid, setIsFormValid] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
 
   useEffect(() => {
     const newErrors = {

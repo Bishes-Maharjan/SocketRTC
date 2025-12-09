@@ -27,5 +27,5 @@ ISO6391.getAllCodes().forEach((code) => {
 });
 
 export const COUNTRIES = Object.entries(countries)
-  .map(([code, country]) => country.name)
+  .map(([, country]) => country.name)
   .sort();

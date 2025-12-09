@@ -1,14 +1,14 @@
 import { axiosInstance } from "@/lib/apis/axios";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 
 export const useAuthUser = () => {
-  const queryClient = useQueryClient();
+  // const queryClient = useQueryClient(); // Unused
 
   const {
     data: user,
     isLoading,
-    refetch,
+    // refetch, // Unused
   } = useQuery({
     queryKey: ["auth-user"],
     queryFn: async () => {

@@ -7,7 +7,7 @@ import { useChatStore } from "@/stores/useChatStore";
 import { LoaderIcon, Video } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
@@ -36,7 +36,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     updateChatUnreadCount,
     setTyping,
     clearTyping,
-    isTyping: checkIsTyping,
+    // isTyping: checkIsTyping, // Unused
     loadingMessages,
     setLoadingMessages,
   } = useChatStore();
@@ -94,6 +94,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     // Join room - server will mark messages as read and emit 'messages-marked-read' event
     joinRoom(chat._id); 
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleReceiveMessage = (data: any) => {
       // Only handle messages for this specific chat room
       if (data.roomId !== chat._id) return;
@@ -119,6 +120,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       updateChatUnreadCount(chat._id, 0);
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleMessagesMarkedRead = (data: any) => {
       if (data.roomId === chat._id) {
         // Mark all messages as read in store
@@ -131,18 +133,21 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleUserTyping = (data: any) => {
       if (data.userId !== user?._id && data.roomId === chat._id) {
         setTyping(chat._id, data.userId, true);
       }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleUserStoppedTyping = (data: any) => {
       if (data.userId !== user?._id && data.roomId === chat._id) {
         clearTyping(chat._id, data.userId);
       }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleRejectCall = (data: any) => {
       // Check if the rejection is for us (we are the caller)
       if (data.to === user?._id && data.roomId === chat._id) {
@@ -168,7 +173,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       }
       leaveRoom(chat._id);
     };
-      }, [chat._id, user?._id, updateChatLastMessage, updateChatUnreadCount, markMessagesAsRead, setTyping, clearTyping, addMessage, isConnected,socket ]);
+  }, [chat._id, user?._id, updateChatLastMessage, updateChatUnreadCount, markMessagesAsRead, setTyping, clearTyping, addMessage, isConnected, socket, joinRoom, leaveRoom]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -178,7 +183,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   }, [messages.length]);
 
   // Load more messages (pagination)
-  const loadMoreMessages = async () => {
+  const loadMoreMessages = useCallback(async () => {
     if (!hasMore || isLoadingMore) return;
 
     setIsLoadingMore(true);
@@ -208,7 +213,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     } finally {
       setIsLoadingMore(false);
     }
-  };
+  }, [hasMore, isLoadingMore, currentPage, chat._id, prependMessages]);
 
   // Infinite scroll for loading old messages (scroll up)
   useEffect(() => {
@@ -242,7 +247,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         observer.unobserve(currentTarget);
       }
     };
-  }, [hasMore, isLoadingMore]);
+  }, [hasMore, isLoadingMore, loadMoreMessages]);
 
   // Find the most recent message sent by the current user that has been read
   const mostRecentReadMessage = messages

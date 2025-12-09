@@ -8,7 +8,7 @@ import Sidebar from '@/components/Sidebar';
 import { useSocket } from '@/hooks/useSocket';
 import { getUser } from '@/lib/apis/friend.api';
 import { getImage } from '@/lib/utils';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import LoginPage from './login/page';
 import OnboardingPage from './onboard/page';
@@ -24,7 +24,7 @@ interface IncomingCall {
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
+  // const router = useRouter(); // Unused
   const { user, isLoading } = useAuth();
   const { socket, isConnected } = useSocket();
   const [isMounted, setIsMounted] = useState(false);
@@ -158,7 +158,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           isOpen={!!incomingCall}
           callerName={incomingCall?.callerName || 'Someone'}
           roomId={incomingCall?.roomId || ''}
-          callerId={incomingCall?.from || ''}
+          // callerId={incomingCall?.from || ''} // Unused
           image={getImage(incomingCall?.image)}
           onPickUp={handlePickUp}
           onReject={handleRejectCall}
@@ -185,7 +185,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         isOpen={!!incomingCall}
         callerName={incomingCall?.callerName || 'Someone'}
         roomId={incomingCall?.roomId || ''}
-        callerId={incomingCall?.from || ''}
+        // callerId={incomingCall?.from || ''} // Unused
         image={getImage(incomingCall?.image)}
         onPickUp={handlePickUp}
         onReject={handleRejectCall}
