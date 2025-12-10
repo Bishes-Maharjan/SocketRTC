@@ -27,9 +27,6 @@ import { AuthenticatedSocket } from '../dtos/chat.dto';
       process.env.NODE_ENV === 'production'
         ? process.env.FRONTEND_URL
         : 'http://localhost:3000',
-      'http://127.0.0.1:5500/socket-connect.html',
-      'https://localhost:5500',
-      'https:127.0.0.1:5500',
     ],
   },
   credentials: true,

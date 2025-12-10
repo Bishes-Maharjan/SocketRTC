@@ -11,9 +11,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: {
       origin: [
-        'http://localhost:5500',
-        'http://127.0.0.1:5500',
-        'http://127.0.0.1:5500/socket-connect.html',
+        'http://localhost:3000',
+        process.env.FRONTEND_URL || '',
       ],
       credentials: true,
     },
@@ -31,13 +30,9 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'http://localhost:3001',
-      'http://127.0.0.1:5500',
-      'htttps://localhost:5500',
-      'http://127.0.0.1:5500/socket-connect.html',
-      process.env.FRONTEND_URL || '', // Your production frontend URL
-      // Add any other domains you need
-    ], // Remove undefined values
-    credentials: true, // This is ESSENTIAL for cookies
+      process.env.FRONTEND_URL || '',
+    ],
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
@@ -50,7 +45,7 @@ async function bootstrap() {
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory, {
     swaggerOptions: {
-      withCredentials: true, // ✅ Sends cookies
+      withCredentials: true,
     },
   });
   const port = process.env.PORT ?? 3001;
