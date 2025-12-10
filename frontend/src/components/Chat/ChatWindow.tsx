@@ -15,6 +15,13 @@ import { TypingIndicator } from "./TypingIndicator";
 export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const { user } = useAuth();
   const router = useRouter();
+
+  // Debug logging
+  useEffect(() => {
+    console.log(`ChatWindow mounted for chat: ${chat._id}`);
+    return () => console.log(`ChatWindow unmounted for chat: ${chat._id}`);
+  }, [chat._id]);
+
   const { socket, joinRoom, leaveRoom, isConnected } = useSocket(); // Use shared socket
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -110,25 +117,28 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
         updatedAt: data.updatedAt,
       };
 
+      const store = useChatStore.getState();
+
       // Add message to store
-      addMessage(chat._id, newMsg);
+      store.addMessage(chat._id, newMsg);
       
       // Update chat last message
-      updateChatLastMessage(chat._id, newMsg);
+      store.updateChatLastMessage(chat._id, newMsg);
       
       // If user is viewing this chat, mark as read and reset unread count
-      updateChatUnreadCount(chat._id, 0);
+      store.updateChatUnreadCount(chat._id, 0);
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleMessagesMarkedRead = (data: any) => {
       if (data.roomId === chat._id) {
+        const store = useChatStore.getState();
         // Mark all messages as read in store
-        markMessagesAsRead(chat._id, data.userId);
+        store.markMessagesAsRead(chat._id, data.userId);
         
         // Update unread count
         if (data.userId === user?._id) {
-          updateChatUnreadCount(chat._id, 0);
+          store.updateChatUnreadCount(chat._id, 0);
         }
       }
     };
@@ -136,14 +146,14 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleUserTyping = (data: any) => {
       if (data.userId !== user?._id && data.roomId === chat._id) {
-        setTyping(chat._id, data.userId, true);
+        useChatStore.getState().setTyping(chat._id, data.userId, true);
       }
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleUserStoppedTyping = (data: any) => {
       if (data.userId !== user?._id && data.roomId === chat._id) {
-        clearTyping(chat._id, data.userId);
+        useChatStore.getState().clearTyping(chat._id, data.userId);
       }
     };
 
@@ -163,6 +173,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     newSocket.on("rejectCall", handleRejectCall);
 
     return () => {
+      console.log(`Cleaning up socket listeners for chat: ${chat._id}`);
       newSocket.off("receive-message", handleReceiveMessage);
       newSocket.off("messages-marked-read", handleMessagesMarkedRead);
       newSocket.off("user-typing", handleUserTyping);
@@ -173,7 +184,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
       }
       leaveRoom(chat._id);
     };
-  }, [chat._id, user?._id, updateChatLastMessage, updateChatUnreadCount, markMessagesAsRead, setTyping, clearTyping, addMessage, isConnected, socket, joinRoom, leaveRoom]);
+  }, [chat._id, user?._id, isConnected, socket, joinRoom, leaveRoom]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
