@@ -6,15 +6,16 @@ import { useSocket } from "@/hooks/useSocket";
 import { ChatRoom, Message } from "@/interfaces/allInterface";
 import { getAllChats } from "@/lib/apis/chat.api";
 import { useChatStore } from "@/stores/useChatStore";
-import { useRouter } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { Socket } from "socket.io-client";
 
-export default function ChatsPage({ searchParams }: { searchParams: Promise<{ chatId: string }> }) {
+function ChatsPageContent() {
   const { user } = useAuth();
   const router = useRouter();
-  const { chatId } = React.use(searchParams);
+  const searchParams = useSearchParams();
+  const chatId = searchParams.get("chatId");
   // Derive selected chat from URL and store
   
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -303,5 +304,13 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       </div>
     </div>
     </>
+  );
+}
+
+export default function ChatsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+      <ChatsPageContent />
+    </Suspense>
   );
 }
