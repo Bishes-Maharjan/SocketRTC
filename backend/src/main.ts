@@ -12,7 +12,7 @@ async function bootstrap() {
     cors: {
       origin: [
         'http://localhost:3000',
-        process.env.FRONTEND_URL || '',
+        process.env.FRONTEND_URL || 'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app/',
       ],
       credentials: true,
     },
@@ -30,7 +30,7 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'http://localhost:3001',
-      process.env.FRONTEND_URL || '',
+      process.env.FRONTEND_URL || 'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app/',
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
