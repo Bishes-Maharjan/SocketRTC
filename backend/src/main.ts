@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -7,17 +5,12 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 import { AppModule } from './app.module';
 import cookieParser = require('cookie-parser');
-async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    cors: {
-      origin: [
-        'http://localhost:3000',
-        process.env.FRONTEND_URL || 'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app/',
-      ],
-      credentials: true,
-    },
-  });
 
+async function bootstrap() {
+  // REMOVE CORS from here - don't configure it twice
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.use(cookieParser());
   app.useStaticAssets(join(__dirname, '..', 'public'));
 
   app.useGlobalPipes(
@@ -26,17 +19,25 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+
+  // Configure CORS only once, here
   app.enableCors({
     origin: [
+      'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app', // NO trailing slash
       'http://localhost:3000',
-      'http://localhost:3001',
-      process.env.FRONTEND_URL || 'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app/',
+      process.env.FRONTEND_URL||'', 
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Set-Cookie'], // Important for cookies
   });
-  app.use(cookieParser());
+
+  const port = process.env.PORT || 3001;
+  await app.listen(port, '0.0.0.0');
+  
+  console.log(`Application is running on: ${await app.getUrl()}`);
+
   const config = new DocumentBuilder()
     .setTitle('Streamify')
     .setVersion('1.0')
@@ -47,11 +48,6 @@ async function bootstrap() {
     swaggerOptions: {
       withCredentials: true,
     },
-  });
-  const port = process.env.PORT ?? 3001;
-
-  await app.listen(port, () => {
-    console.log('Listening in port: ', port);
   });
 }
 bootstrap();
