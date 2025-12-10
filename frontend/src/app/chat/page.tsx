@@ -170,7 +170,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       socket.off("rejectCall", handleRejectCall);
       globalSocketRef.current = null;
     };
-  }, [user?._id, socket, isConnected]); // ✅ Stable dependencies only
+  }, [user?._id, socket, isConnected]); 
 
   // Keep selectedChatRef in sync with selectedChat state for socket handlers
   useEffect(() => {
