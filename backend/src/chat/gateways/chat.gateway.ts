@@ -336,8 +336,9 @@ export class ChatGateway
   }
 
   @UseGuards(JwtWsGuard)
+  @UseGuards(JwtWsGuard)
   @SubscribeMessage('typing')
-  handleTyping(
+  async handleTyping(
     @MessageBody() { roomId }: { roomId: string },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -351,18 +352,26 @@ export class ChatGateway
       userName: client.data.user?.email,
     });
 
-    // Also emit to user's personal room for chat list updates
-    const userRoom = `user:${userId}`;
-    this.server.to(userRoom).emit('user-typing', {
-      roomId,
-      userId,
-      userName: client.data.user?.email,
-    });
+    // Find the chat partner to send notification to their personal room
+    // This allows the "typing" indicator to show up in the chat list
+    const roomExists = await this.chatService.checkRoomId(roomId);
+    if (roomExists) {
+      const chatPartner = roomExists.members.find((id) => id != userId);
+      if (chatPartner) {
+        const partnerRoom = `user:${chatPartner}`;
+        this.server.to(partnerRoom).emit('user-typing', {
+          roomId,
+          userId,
+          userName: client.data.user?.email,
+        });
+      }
+    }
   }
 
   @UseGuards(JwtWsGuard)
+  @UseGuards(JwtWsGuard)
   @SubscribeMessage('stop-typing')
-  handleStopTyping(
+  async handleStopTyping(
     @MessageBody() { roomId }: { roomId: string },
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
@@ -375,12 +384,18 @@ export class ChatGateway
       userId,
     });
 
-    // Also emit to user's personal room for chat list updates
-    const userRoom = `user:${userId}`;
-    this.server.to(userRoom).emit('user-stopped-typing', {
-      roomId,
-      userId,
-    });
+    // Find the chat partner to send notification to their personal room
+    const roomExists = await this.chatService.checkRoomId(roomId);
+    if (roomExists) {
+      const chatPartner = roomExists.members.find((id) => id != userId);
+      if (chatPartner) {
+        const partnerRoom = `user:${chatPartner}`;
+        this.server.to(partnerRoom).emit('user-stopped-typing', {
+          roomId,
+          userId,
+        });
+      }
+    }
   }
 
   @UseGuards(JwtWsGuard)
