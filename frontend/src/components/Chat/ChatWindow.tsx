@@ -35,15 +35,9 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   // Zustand store
   const {
     getMessages,
-    addMessage,
     addMessages,
     prependMessages,
-    markMessagesAsRead,
-    updateChatLastMessage,
     updateChatUnreadCount,
-    setTyping,
-    clearTyping,
-    // isTyping: checkIsTyping, // Unused
     loadingMessages,
     setLoadingMessages,
   } = useChatStore();
