@@ -117,6 +117,8 @@ export class AuthController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Get me' })
   getLoggedInUser(@Req() req: Irequest) {
+    console.log(process.env.FRONTEND_URL);
+    console.log(this.cookieSetting);
     return this.authService.getMe(req.user.id);
   }
 
