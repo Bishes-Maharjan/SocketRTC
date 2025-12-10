@@ -91,7 +91,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
 
       // Initialize socket connection
       log('Connecting to signaling server...', 'info');
-      const socket = io('https://socketrtc-backend.onrender.com',
+      const socket = io(process.env.NEXT_PUBLIC_API_URL || 'https://socketrtc-backend.onrender.com',
    {
         withCredentials: true,
         transports: ['websocket', 'polling'],
