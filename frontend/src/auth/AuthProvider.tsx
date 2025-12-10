@@ -18,7 +18,10 @@ type AuthContextType = {
   isLoading: boolean;
 };
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isLoading: true,
+});
 
 export const AuthProvider = ({
   children,
@@ -28,7 +31,7 @@ export const AuthProvider = ({
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Move hook call to the top - always call hooks in the same order
-  const { user, isLoading }: { user: User; isLoading: boolean } = useAuthUser();
+  const { user, isLoading } = useAuthUser();
 
   useEffect(() => {
     setIsHydrated(true);
@@ -39,8 +42,8 @@ export const AuthProvider = ({
     return (
       <AuthContext.Provider
         value={{
-          user: null,
-          isLoading: true,
+          user,
+          isLoading,
         }}
       >
         {children}
