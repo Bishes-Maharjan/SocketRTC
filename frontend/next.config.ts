@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  trailingSlash: true,
+  trailingSlash: false,
   // Add this for better error reporting
   productionBrowserSourceMaps: false,
   // Disable static optimization temporarily to debug
