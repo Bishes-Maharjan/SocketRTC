@@ -537,7 +537,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
     log('✓ Cleanup complete', 'success');
     
     // Navigate back
-    router.push(`/chat?chatId=${roomId}`);
+    router.push(`/chat/${roomId}`);
   }, [roomId, router]);
 
   // Listen for call rejection
