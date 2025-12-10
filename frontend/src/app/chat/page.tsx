@@ -31,11 +31,6 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     loadingChats,
     setChats,
     addChats,
-    addMessage,
-    updateChatLastMessage,
-    updateChatUnreadCount,
-    setTyping,
-    clearTyping,
     setLoadingChats,
     setCurrentRoomId,
   } = useChatStore();
