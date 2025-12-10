@@ -172,6 +172,7 @@ import { AuthenticatedSocket } from '../dtos/chat.dto';
   cors: {
     origin: [
       process.env.FRONTEND_URL,
+      'https://socket-rtc.vercel.app',
       'https://socket-rtc-2-klxwjv4oz-bishes-maharjans-projects.vercel.app',
       'https://socket-rfa6cvdll-bishes-maharjans-projects.vercel.app',
       'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app',
