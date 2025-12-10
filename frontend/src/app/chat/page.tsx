@@ -14,15 +14,16 @@ import { Socket } from "socket.io-client";
 export default function ChatsPage({ searchParams }: { searchParams: Promise<{ chatId: string }> }) {
   const { user } = useAuth();
   const router = useRouter();
-  const [selectedChat, setSelectedChat] = useState<ChatRoom | null>(null);
   const { chatId } = React.use(searchParams);
+  // Derive selected chat from URL and store
+  
   const observerTarget = useRef<HTMLDivElement>(null);
   const globalSocketRef = useRef<Socket | null>(null);
   const selectedChatRef = useRef<ChatRoom | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const { socket, isConnected } = useSocket(); // Use shared socket
-
+  
   // Zustand store
   const {
     chats,
@@ -38,10 +39,22 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     setLoadingChats,
     getChat,
   } = useChatStore();
-
+  
+  const selectedChat = React.useMemo(() => {
+    return chats.find((c) => c._id === chatId) || null;
+  }, [chats, chatId]);
+  
   // Load initial chats
   useEffect(() => {
     if (!user?._id) return;
+
+    if (!user?._id) return;
+
+    // Don't refetch if we already have chats (prevents spinner on navigation)
+    if (chats.length > 0) {
+      setLoadingChats(false); // Ensure loading is false
+      return;
+    }
 
     setLoadingChats(true);
     getAllChats({ limit: 20, page: 1 }) // server side func, loading chat window with latest msg and unread count for initial load
@@ -158,23 +171,10 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     };
   }, [user?._id, addMessage, updateChatLastMessage, updateChatUnreadCount, setTyping, clearTyping, getChat, chats, router]);
 
-  // Keep selectedChatRef in sync with selectedChat state
+  // Keep selectedChatRef in sync with selectedChat state for socket handlers
   useEffect(() => {
     selectedChatRef.current = selectedChat;
   }, [selectedChat]);
-
-  // Initialize and update selectedChat from URL chatId when chats are loaded or chatId changes
-  useEffect(() => {
-    if (chatId && chats.length > 0) {
-      const chatFromUrl = chats.find((c: ChatRoom) => c._id === chatId);
-      if (chatFromUrl && selectedChat?._id !== chatId) {
-        setSelectedChat(chatFromUrl);
-      }
-    } else if (!chatId && selectedChat) {
-      // Clear selection if chatId is removed from URL
-      setSelectedChat(null);
-    }
-  }, [chatId, chats, selectedChat]);
 
   // Load more chats (pagination)
   const loadMoreChats = async () => {
@@ -269,10 +269,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
                   isSelected={selectedChat?._id === chat._id || chatId === chat._id}
                   isTyping={isChatTyping(chat._id)}
                   onClick={() => {
-                    // Get latest chat from store
-                    const latestChat = getChat(chat._id) || chat;
-                    setSelectedChat(latestChat);
-                    // Update URL with chatId
+                    // Update URL with chatId - this will update selectedChat via derivation
                     router.push(`/chat?chatId=${chat._id}`);
                   }}
                 />
