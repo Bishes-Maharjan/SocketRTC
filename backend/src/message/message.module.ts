@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { MessageController } from './message.controller';
 import { MessageService } from './message.service';
 import { Message, MessageSchema } from './models/message.model';
+import { TranslateService } from './translate.service';
 
 @Module({
   imports: [
@@ -14,7 +15,8 @@ import { Message, MessageSchema } from './models/message.model';
     ]),
   ],
   controllers: [MessageController],
-  providers: [MessageService],
+  providers: [MessageService, TranslateService],
   exports: [MessageService],
 })
 export class MessageModule {}
+

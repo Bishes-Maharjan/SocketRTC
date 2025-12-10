@@ -1,20 +1,39 @@
 import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  Req,
-  Request,
-  UseGuards,
+    Body,
+    Controller,
+    Get,
+    Param,
+    Post,
+    Query,
+    Req,
+    Request,
+    UseGuards,
 } from '@nestjs/common';
 import { JwtGuard } from 'src/auth/guard/jwtGuard';
 import { Irequest, paginationQuery } from 'src/globals/Req.dto';
+import { TranslateDto } from './dto/translate.dto';
 import { MessageService } from './message.service';
+import { TranslateService } from './translate.service';
 
 @UseGuards(JwtGuard)
 @Controller('message')
 export class MessageController {
-  constructor(private messageService: MessageService) {}
+  constructor(
+    private messageService: MessageService,
+    private translateService: TranslateService,
+  ) {}
+
+  // Get supported languages for translation
+  @Get('languages')
+  getSupportedLanguages() {
+    return this.translateService.getSupportedLanguages();
+  }
+
+  // Translate message text
+  @Post('translate')
+  async translateMessage(@Body() { text, targetLanguage }: TranslateDto) {
+    return this.translateService.translateText(text, targetLanguage);
+  }
 
   // get total notification for unread messages
   @Get('unread')
