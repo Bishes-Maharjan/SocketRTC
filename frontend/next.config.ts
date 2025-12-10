@@ -1,4 +1,6 @@
-const nextConfig = {
+import { NextConfig } from "next";
+
+const nextConfig : NextConfig = {
   reactStrictMode: true,
   trailingSlash: false,
   // Add this for better error reporting
