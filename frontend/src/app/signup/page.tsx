@@ -9,6 +9,7 @@ import { ShipWheelIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import process from "process";
 import { useEffect, useRef, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import singUpImage from "../../../public/signup.png";
@@ -65,7 +66,7 @@ const SignUpPage = () => {
     setAvatarIdx(idx);
     setSignupData((prev) => ({
       ...prev,
-      image: `http://localhost:3001/uploads/avatar.jpg`,
+      image: `${process.env.NEXT_PUBLIC_API_URL}/uploads/avatar.jpg`,
     }));
   }, []);
 
