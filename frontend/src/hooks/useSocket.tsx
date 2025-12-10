@@ -27,17 +27,20 @@ export const useSocket = () => {
 };
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthUser();
+  const { user, isLoading } = useAuthUser();
   const socketRef = useRef<Socket | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const currentRoomsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    console.log("SocketProvider useEffect running, user._id:", user?._id);
+    console.log("SocketProvider useEffect running, user._id:", user?._id, "isLoading:", isLoading);
     
+    // Don't do anything while auth is loading
+    if (isLoading) return;
+
     if (!user?._id) {
-      console.log("No user, cleaning up socket");
+      console.log("No user and not loading, cleaning up socket");
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
