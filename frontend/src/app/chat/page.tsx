@@ -125,6 +125,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
 
     const handleUserStoppedTyping = (data: {userId: string; roomId: string}) => {
       if (data.userId !== user?._id && data.roomId) {
+        setTyping(data.roomId, data.userId, false);
         clearTyping(data.roomId, data.userId);
       }
     };

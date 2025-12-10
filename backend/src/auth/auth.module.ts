@@ -7,6 +7,7 @@ import { UserModule } from 'src/user/user.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 // import { JwtWsGuard } from './guard/jwtWsStrategy';
+import { UploadModule } from 'src/upload/upload.module';
 import { GoogleStrategy } from './strategy/googleStrategy';
 import { JwtStrategy } from './strategy/jwtStrategy';
 
@@ -20,6 +21,7 @@ import { JwtStrategy } from './strategy/jwtStrategy';
       inject: [ConfigService],
     }),
     UserModule,
+    UploadModule,
     MongooseModule.forFeature([
       {
         name: User.name,

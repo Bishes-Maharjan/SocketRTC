@@ -12,6 +12,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bycrpt from 'bcrypt';
 import { Model } from 'mongoose';
 import { GoogleUser } from 'src/globals/googleUser.dto';
+import { UploadService } from 'src/upload/upload.service';
 import { OnBoardingDTO, SignInDTO, SignUpDTO } from 'src/user/dtos/user.dto';
 import { User, UserDocument } from 'src/user/model/user.model';
 
@@ -19,6 +20,7 @@ import { User, UserDocument } from 'src/user/model/user.model';
 export class AuthService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+private uploadService: UploadService, 
     private jwt: JwtService,
   ) {}
 
@@ -50,18 +52,30 @@ export class AuthService {
     return this.generateJwtToken(user.id, user.email);
   }
 
-  async createGoogleUser(googleUserDto: GoogleUser) {
-    let user = await this.userModel // Change 'const' to 'let'
+   async createGoogleUser(googleUserDto: GoogleUser) {
+    let user = await this.userModel
       .findOne({ email: googleUserDto.email })
       .exec();
 
     if (!user) {
+      // Download and save Google profile image
+      let localImagePath = "";
+      if (googleUserDto.picture) {
+        try {
+          localImagePath = await this.uploadService.downloadAndSaveImage(
+            googleUserDto.picture
+          );
+        } catch (error) {
+          console.error('Failed to download Google profile image:', error);
+          // Continue without image rather than failing
+        }
+      }
+
       user = new this.userModel({
-        // Remove 'const' - reassign to existing variable
         email: googleUserDto.email,
         fullName: googleUserDto.name,
         provider: 'google',
-        image: googleUserDto.picture,
+        image: localImagePath || googleUserDto.picture, // Use local path or fallback to Google URL
       });
       await user.save();
     }

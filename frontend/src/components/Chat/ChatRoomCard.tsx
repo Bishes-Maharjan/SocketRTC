@@ -1,7 +1,7 @@
 import { ChatRoom } from "@/interfaces/allInterface";
 import { formatMessageTime, getImage } from "@/lib/utils";
-import { TypingIndicator } from "./TypingIndicator";
 import Image from "next/image";
+import { TypingIndicator } from "./TypingIndicator";
 export function ChatRoomCard({
   chat,
   us,
@@ -29,7 +29,7 @@ export function ChatRoomCard({
         <div className="relative w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
           {chat.members.image ? (
             <Image
-              src={getImage( chat.members.image)}
+              src={getImage(chat.members.image)}
               alt={chat.members.fullName}
               fill
               className="object-cover"
