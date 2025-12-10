@@ -9,6 +9,9 @@ import cookieParser = require('cookie-parser');
 async function bootstrap() {
   // REMOVE CORS from here - don't configure it twice
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  
+  // Trusted proxy is required for cookies to work on Render/Heroku behind a load balancer
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   app.use(cookieParser());
   app.useStaticAssets(join(__dirname, '..', 'public'));

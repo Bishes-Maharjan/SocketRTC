@@ -22,7 +22,7 @@ export function ChatRoomCard({
     <div
       onClick={onClick}
       className={`p-4 border-b border-base-300 cursor-pointer transition-colors hover:bg-base-200 ${
-        isSelected ? "bg-base-200" : ""
+        isSelected ? "!bg-base-300 border-l-4 border-primary" : "border-l-4 border-transparent"
       }`}
     >
       <div className="flex items-start gap-3">
