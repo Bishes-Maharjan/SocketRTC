@@ -25,10 +25,10 @@ import { AuthenticatedSocket } from '../dtos/chat.dto';
   cors: {
     origin: [
       process.env.FRONTEND_URL,
-      'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app/', 
-      process.env.NODE_ENV === 'production'
-        ? process.env.FRONTEND_URL
-        : 'http://localhost:3000',
+      'https://socket-rfa6cvdll-bishes-maharjans-projects.vercel.app',
+      'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app', 
+     
+      'http://localhost:3000',
     ],
   },
   credentials: true,
