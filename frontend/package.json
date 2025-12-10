@@ -30,7 +30,9 @@
     "zustand": "^5.0.5",
     "tailwindcss": "^4.1.10",
     "postcss": "^8.4.49",
-    "@tailwindcss/postcss": "^4.1.10"
+    "@tailwindcss/postcss": "^4.1.10",
+     "daisyui": "^5.0.43"
+
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -38,7 +40,6 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "daisyui": "^5.0.43",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
     "typescript": "^5"
