@@ -17,8 +17,8 @@ export default function NotFound() {
           <h2 className="text-4xl font-bold -mt-12 mb-4 relative z-10">Page Not Found</h2>
           
           <p className="py-6 text-base-content/70 text-lg">
-            Whoops! It seems like you've wandered into uncharted territory. 
-            The page you are looking for doesn't exist or has been moved.
+            {`Whoops! It seems like you've wandered into uncharted territory. 
+            The page you are looking for doesn't exist or has been moved.`}
           </p>
           
           <div className="flex justify-center gap-4">
