@@ -37,7 +37,7 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   
   console.log(`Application is running on: ${await app.getUrl()}`);
-
+  console.log('The allowed frontend url for cors: ', process.env.FRONTEND_URL)
   const config = new DocumentBuilder()
     .setTitle('Streamify')
     .setVersion('1.0')
