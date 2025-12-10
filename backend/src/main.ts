@@ -26,7 +26,7 @@ async function bootstrap() {
   // Configure CORS only once, here
   app.enableCors({
     origin: [
-      process.env.FRONTEND_URL||'https://socket-rfa6cvdll-bishes-maharjans-projects.vercel.app', 
+      process.env.FRONTEND_URL||'https://socket-rtc-2-klxwjv4oz-bishes-maharjans-projects.vercel.app', 
       'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app',
       'http://localhost:3000',
     ],
