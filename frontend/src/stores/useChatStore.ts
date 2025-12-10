@@ -24,6 +24,10 @@ interface ChatStore {
   loadingMessages: Record<string, boolean>;
   loadingChats: boolean;
   
+  // Current active room
+  currentRoomId: string | null;
+  setCurrentRoomId: (roomId: string | null) => void;
+  
   // Actions - Messages
   addMessage: (roomId: string, message: Message) => void;
   addMessages: (roomId: string, messages: Message[], page?: number, hasMore?: boolean) => void;
@@ -65,6 +69,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   typingUsers: {},
   loadingMessages: {},
   loadingChats: false,
+  currentRoomId: null,
+
+  setCurrentRoomId: (roomId) => set({ currentRoomId: roomId }),
 
   // Messages Actions
   addMessage: (roomId, message) => {

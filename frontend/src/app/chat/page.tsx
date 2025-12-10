@@ -37,8 +37,13 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     setTyping,
     clearTyping,
     setLoadingChats,
-    getChat,
+    setCurrentRoomId,
   } = useChatStore();
+
+  // Update current room in store whenever URL changes
+  useEffect(() => {
+    setCurrentRoomId(chatId || null);
+  }, [chatId, setCurrentRoomId]);
   
   const selectedChat = React.useMemo(() => {
     return chats.find((c) => c._id === chatId) || null;
@@ -82,6 +87,9 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
 
     // Handle receiving messages for any room (via user's personal room)
     const handleReceiveMessage = (data: Message) => {
+      // Get fresh state avoiding closure staleness
+      const { currentRoomId, addMessage, updateChatLastMessage, updateChatUnreadCount, getChat } = useChatStore.getState();
+
       const newMsg: Message = {
         _id: data._id,
         sender: data.sender,
@@ -94,7 +102,9 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       };
 
       // Add message to store only if not currently viewing this room
-      const isCurrentlyViewing = selectedChatRef.current?._id === data.roomId;
+      // We check against the store's currentRoomId which is synced with URL
+      const isCurrentlyViewing = currentRoomId === data.roomId;
+      
       if (!isCurrentlyViewing) {
         addMessage(data.roomId, newMsg);
       }
@@ -102,10 +112,7 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       // Update chat last message
       updateChatLastMessage(data.roomId, newMsg);
 
-      // Update unread count:
-      // - Don't increment if message is from current user
-      // - Don't increment if message is already read (user is viewing the chat)
-      // - Increment if message is not from current user and not read
+      // Update unread count logic
       const isFromCurrentUser = newMsg.sender === user?._id;
       
       if (!isFromCurrentUser && !newMsg.isRead) {
@@ -114,10 +121,8 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
         const currentUnread = chat?.unreadCount || 0;
         updateChatUnreadCount(data.roomId, currentUnread + 1);
       } else if (isFromCurrentUser) {
-        // We sent it, so no unread messages for us in this chat
         updateChatUnreadCount(data.roomId, 0);
       } else if (newMsg.isRead && isCurrentlyViewing) {
-        // We read it while viewing
         updateChatUnreadCount(data.roomId, 0);
       }
     };
@@ -125,32 +130,29 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
     // Handle messages marked as read
     const handleMessagesMarkedRead = (data: {userId: string; roomId: string}) => {
       if (data.userId !== user?._id) {
-        // Another user read messages - reset unread count
-        updateChatUnreadCount(data.roomId, 0);
+        useChatStore.getState().updateChatUnreadCount(data.roomId, 0);
       }
     };
 
     const handleUserTyping = (data: {userId: string; roomId: string}) => {
       if (data.userId !== user?._id && data.roomId) {
-        setTyping(data.roomId, data.userId, true);
+        useChatStore.getState().setTyping(data.roomId, data.userId, true);
       }
     };
 
     const handleUserStoppedTyping = (data: {userId: string; roomId: string}) => {
       if (data.userId !== user?._id && data.roomId) {
-        setTyping(data.roomId, data.userId, false);
-        clearTyping(data.roomId, data.userId);
+        const store = useChatStore.getState();
+        store.setTyping(data.roomId, data.userId, false);
+        store.clearTyping(data.roomId, data.userId);
       }
     };
 
     // Note: 'calling' event is now handled globally in root-client-layout.tsx
 
     const handleRejectCall = (data: {to: string}) => {
-      // Check if the rejection is for us (we are the caller)
       if (data.to === user?._id) {
-        toast.error("Call denied", {
-          position: "top-center",
-        });
+        toast.error("Call denied", { position: "top-center" });
       }
     };
 
@@ -167,9 +169,8 @@ export default function ChatsPage({ searchParams }: { searchParams: Promise<{ ch
       socket.off("user-stopped-typing", handleUserStoppedTyping);
       socket.off("rejectCall", handleRejectCall);
       globalSocketRef.current = null;
-      
     };
-  }, [user?._id, addMessage, updateChatLastMessage, updateChatUnreadCount, setTyping, clearTyping, getChat, chats, router]);
+  }, [user?._id, socket, isConnected]); // ✅ Stable dependencies only
 
   // Keep selectedChatRef in sync with selectedChat state for socket handlers
   useEffect(() => {
