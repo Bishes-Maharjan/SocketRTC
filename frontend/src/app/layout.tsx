@@ -15,20 +15,20 @@ export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
-}) {  
+}) {
   return (
-<html lang="en">  
-
+    <html lang="en">
       <body>
         <ReactQueryProvider>
           <AuthProvider>
-            <Providers>
-              <SocketProvider>{children}</SocketProvider>
-            </Providers>
+            <SocketProvider>
+              <Providers>
+                {children}
+              </Providers>
+            </SocketProvider>
           </AuthProvider>
         </ReactQueryProvider>
       </body>
-</html>
-
+    </html>
   );
 }
