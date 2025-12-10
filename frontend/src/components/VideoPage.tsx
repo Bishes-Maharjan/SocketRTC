@@ -91,7 +91,8 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
 
       // Initialize socket connection
       log('Connecting to signaling server...', 'info');
-      const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
+      const socket = io(process.env.NEXT_PUBLIC_API_URL || 'https://socket-rfa6cvdll-bishes-maharjans-projects.vercel.app',
+   {
         withCredentials: true,
         transports: ['websocket', 'polling'],
       });
