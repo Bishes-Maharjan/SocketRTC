@@ -17,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+
       <body>
         <ReactQueryProvider>
           <AuthProvider>
@@ -27,6 +27,6 @@ export default function RootLayout({
           </AuthProvider>
         </ReactQueryProvider>
       </body>
-    </html>
+
   );
 }
