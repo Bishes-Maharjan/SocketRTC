@@ -544,7 +544,7 @@ export default function VideoCallPage({ roomId }: { roomId: string }) {
   useEffect(() => {
     if (!user?._id) return;
 
-    const chatSocket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001', {
+    const chatSocket = io(process.env.NEXT_PUBLIC_API_URL || 'https://socketrtc-backend.onrender.com', {
       withCredentials: true,
       transports: ['websocket', 'polling'],
     });

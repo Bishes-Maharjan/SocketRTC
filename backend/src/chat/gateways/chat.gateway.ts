@@ -27,11 +27,10 @@ import { AuthenticatedSocket } from '../dtos/chat.dto';
       process.env.FRONTEND_URL,
       'https://socket-rfa6cvdll-bishes-maharjans-projects.vercel.app',
       'https://socket-6bbczzs2g-bishes-maharjans-projects.vercel.app', 
-     
       'http://localhost:3000',
     ],
+    credentials: true,
   },
-  credentials: true,
   transports: ['websocket', 'polling'],
 })
 export class ChatGateway
