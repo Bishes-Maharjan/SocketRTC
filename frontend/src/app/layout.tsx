@@ -21,11 +21,9 @@ export default function RootLayout({
       <body>
         <ReactQueryProvider>
           <AuthProvider>
-            <SocketProvider>
-              <Providers>
-                {children}
-              </Providers>
-            </SocketProvider>
+            <Providers>
+              <SocketProvider>{children}</SocketProvider>
+            </Providers>
           </AuthProvider>
         </ReactQueryProvider>
       </body>
