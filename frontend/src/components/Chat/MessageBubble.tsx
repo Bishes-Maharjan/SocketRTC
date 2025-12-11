@@ -2,7 +2,7 @@ import { Message } from "@/interfaces/allInterface";
 import { translateMessage } from "@/lib/apis/chat.api";
 import { formatMessageTime } from "@/lib/utils";
 import { Languages } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function MessageBubble({
   message,
@@ -16,22 +16,42 @@ export function MessageBubble({
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [showOriginal, setShowOriginal] = useState(true);
+  const hasTranslated = useRef(false); // Track if user has clicked translate
 
-  // Reset to default when "No translation" is selected
+  // Auto-translate when language changes (if already translated before)
   useEffect(() => {
     if (!preferredLanguage || preferredLanguage === "") {
+      // Reset to default when "No translation" is selected
       setTranslatedText(null);
       setShowOriginal(true);
       setIsTranslating(false);
+      return;
     }
-  }, [preferredLanguage]);
+
+    // If user has translated before, auto-translate on language change
+    if (hasTranslated.current && !showOriginal) {
+      setIsTranslating(true);
+      translateMessage(message.message, preferredLanguage)
+        .then((result) => {
+          setTranslatedText(result.translatedText);
+          setShowOriginal(false);
+        })
+        .catch((error) => {
+          console.error("Translation failed:", error);
+        })
+        .finally(() => {
+          setIsTranslating(false);
+        });
+    }
+  }, [preferredLanguage, message.message, showOriginal]);
 
   const handleTranslate = async () => {
     if (preferredLanguage == "" || !preferredLanguage) 
      { 
         setShowOriginal(true);
-        setTranslatedText(message.message);
+        setTranslatedText(null);
         setIsTranslating(false);
+        hasTranslated.current = false;
         return;
      }
 
@@ -43,9 +63,10 @@ export function MessageBubble({
 
     setIsTranslating(true);
     try {
-      const result = await translateMessage(message.message, preferredLanguage || 'en');
+      const result = await translateMessage(message.message, preferredLanguage);
       setTranslatedText(result.translatedText);
       setShowOriginal(false);
+      hasTranslated.current = true; // Mark as translated for auto-translate on language change
     } catch (error) {
       console.error("Translation failed:", error);
     } finally {
@@ -69,7 +90,7 @@ export function MessageBubble({
         {/* Translated label */}
         {!showOriginal && translatedText && (
           <span className={`text-xs italic ${isOwn ? "text-primary-content/60" : "text-base-content/40"}`}>
-            (Translated to {preferredLanguage})
+            ( {isTranslating? 'Translating to': 'Translated to'} {preferredLanguage})
           </span>
         )}
         
