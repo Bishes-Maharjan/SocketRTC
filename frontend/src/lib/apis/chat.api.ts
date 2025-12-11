@@ -40,3 +40,16 @@ export const getChatById = async (userId: string) => {
   const res = await axiosInstance.get(`chat/${userId}`);
   return res.data;
 };
+
+export const getSupportedLanguages = async (): Promise<string[]> => {
+  const response = await axiosInstance.get("message/languages");
+  return response.data;
+};
+
+export const translateMessage = async (text: string, targetLanguage: string) => {
+  const response = await axiosInstance.post("message/translate", {
+    text,
+    targetLanguage,
+  });
+  return response.data;
+};

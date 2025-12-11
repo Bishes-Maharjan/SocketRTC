@@ -1,10 +1,10 @@
 import { useAuth } from "@/auth/AuthProvider";
 import { useSocket } from "@/hooks/useSocket";
 import { ChatRoom, Message } from "@/interfaces/allInterface";
-import { getRoomMessageWithItsUnreadCount } from "@/lib/apis/chat.api";
+import { getRoomMessageWithItsUnreadCount, getSupportedLanguages } from "@/lib/apis/chat.api";
 import { formatMessageTime, getImage } from "@/lib/utils";
 import { useChatStore } from "@/stores/useChatStore";
-import { LoaderIcon, Video } from "lucide-react";
+import { ChevronDownIcon, Languages, LoaderIcon, Video } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,7 +22,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
     return () => console.log(`ChatWindow unmounted for chat: ${chat._id}`);
   }, [chat._id]);
 
-  const { socket, joinRoom, leaveRoom, isConnected } = useSocket(); // Use shared socket
+  const { socket, joinRoom, leaveRoom, isConnected } = useSocket(); // shared socket
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -31,6 +31,17 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [preferredLanguage, setPreferredLanguage] = useState<string>("");
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+  const [supportedLanguages, setSupportedLanguages] = useState<string[]>([]);
+  const languageDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch supported languages on mount
+  useEffect(() => {
+    getSupportedLanguages()
+      .then(setSupportedLanguages)
+      .catch((err) => console.error("Failed to load languages:", err));
+  }, []);
 
   // Zustand store
   const {
@@ -360,13 +371,52 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
             </p>
           </div>
         </div>
-        <button
-          onClick={handleVideoCall}
-          className="btn btn-circle btn-primary btn-sm"
-          title="Start video call"
-        >
-          <Video className="size-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Language Preference Dropdown */}
+          <div className="relative" ref={languageDropdownRef}>
+            <button
+              onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+              className={`btn btn-sm btn-ghost gap-1 ${preferredLanguage ? 'text-primary' : ''}`}
+              title="Select translation language"
+            >
+              <Languages className="size-4" />
+              <span className="text-xs max-w-20 truncate">{preferredLanguage || 'Translate'}</span>
+              <ChevronDownIcon className={`size-3 transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`} />
+            </button>
+            {showLanguageDropdown && (
+              <div className="absolute right-0 top-full mt-1 w-48 bg-base-100 border border-base-300 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+                <button
+                  onClick={() => {
+                    setPreferredLanguage("");
+                    setShowLanguageDropdown(false);
+                  }}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-base-200 ${!preferredLanguage ? 'bg-primary/10 text-primary' : ''}`}
+                >
+                  No translation
+                </button>
+                {supportedLanguages.map((lang) => (
+                  <button
+                    key={lang}
+                    onClick={() => {
+                      setPreferredLanguage(lang);
+                      setShowLanguageDropdown(false);
+                    }}
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-base-200 ${preferredLanguage === lang ? 'bg-primary/10 text-primary' : ''}`}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={handleVideoCall}
+            className="btn btn-circle btn-primary btn-sm"
+            title="Start video call"
+          >
+            <Video className="size-5" />
+          </button>
+        </div>
       </div>
 
       {/* Messages Area */}
@@ -402,6 +452,7 @@ export function ChatWindow({ chat }: { chat: ChatRoom }) {
                 <MessageBubble
                   message={message}
                   isOwn={message.sender === user?._id}
+                  preferredLanguage={preferredLanguage}
                 />
                 {mostRecentReadMessage && message._id === mostRecentReadMessage._id && (
                   <div className={`text-xs text-base-content/60 ${message.sender === user?._id ? "text-end" : "text-start"}`}>
